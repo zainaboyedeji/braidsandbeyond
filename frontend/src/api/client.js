@@ -1,0 +1,57 @@
+const BASE_URL = import.meta.env.VITE_API_URL || '';
+const TOKEN_KEY = 'salon_token';
+
+export function getToken() {
+  try {
+    return localStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setToken(token) {
+  try {
+    if (token) localStorage.setItem(TOKEN_KEY, token);
+    else localStorage.removeItem(TOKEN_KEY);
+  } catch {
+    // storage blocked: session lasts until refresh
+  }
+}
+
+export class ApiError extends Error {
+  constructor(status, message) {
+    super(message);
+    this.status = status;
+  }
+}
+
+async function request(method, path, body) {
+  const headers = { 'Content-Type': 'application/json' };
+  const token = getToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  let res;
+  try {
+    res = await fetch(`${BASE_URL}/api${path}`, {
+      method,
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    throw new ApiError(0, 'Cannot reach the server. Is the backend running?');
+  }
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    if (res.status === 401) setToken(null);
+    throw new ApiError(res.status, data.error || `Request failed (${res.status})`);
+  }
+  return data;
+}
+
+export const api = {
+  get: (path) => request('GET', path),
+  post: (path, body) => request('POST', path, body ?? {}),
+  patch: (path, body) => request('PATCH', path, body ?? {}),
+  del: (path) => request('DELETE', path),
+};

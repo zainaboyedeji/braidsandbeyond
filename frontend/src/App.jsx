@@ -1,0 +1,58 @@
+import { Navigate, Route, Routes } from 'react-router-dom';
+import Navbar from './components/Navbar';
+import ProtectedRoute from './components/ProtectedRoute';
+import Home from './pages/Home';
+import Login from './pages/Login';
+import Register from './pages/Register';
+import Book from './pages/Book';
+import MyAppointments from './pages/MyAppointments';
+import AdminDashboard from './pages/AdminDashboard';
+import AdminServices from './pages/AdminServices';
+import { useApp } from './context/AppContext';
+
+export default function App() {
+  const { loading } = useApp();
+
+  if (loading) {
+    return <div className="page-loading">Loading…</div>;
+  }
+
+  return (
+    <>
+      <Navbar />
+      <main className="container">
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/book" element={<Book />} />
+          <Route
+            path="/my-appointments"
+            element={
+              <ProtectedRoute>
+                <MyAppointments />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin"
+            element={
+              <ProtectedRoute adminOnly>
+                <AdminDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/services"
+            element={
+              <ProtectedRoute adminOnly>
+                <AdminServices />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </main>
+    </>
+  );
+}
