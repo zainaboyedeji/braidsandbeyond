@@ -1,5 +1,6 @@
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
+import BrandName from './BrandName';
 
 export default function Navbar() {
   const { user, salon, logout } = useApp();
@@ -11,37 +12,45 @@ export default function Navbar() {
   }
 
   return (
-    <header className="navbar">
-      <div className="container navbar-inner">
-        <Link to="/" className="brand">
-          ✂️ {salon.name}
-        </Link>
-        <nav className="nav-links">
-          <NavLink to="/book">Book</NavLink>
-          {user && <NavLink to="/my-appointments">My Appointments</NavLink>}
-          {user?.role === 'admin' && (
-            <>
-              <NavLink to="/admin" end>
-                Dashboard
-              </NavLink>
-              <NavLink to="/admin/services">Services</NavLink>
-              <NavLink to="/admin/hours">Hours</NavLink>
-            </>
-          )}
-          {user ? (
-            <button type="button" className="btn btn-ghost" onClick={handleLogout}>
-              Log out
-            </button>
-          ) : (
-            <>
-              <NavLink to="/login">Log in</NavLink>
-              <Link to="/register" className="btn btn-primary btn-sm">
-                Sign up
-              </Link>
-            </>
-          )}
-        </nav>
+    <>
+      <div className="announcement">
+        <strong>Book online</strong> · Pick your style, choose a time, and you're set
       </div>
-    </header>
+      <header className="navbar">
+        <div className="container navbar-inner">
+          <Link to="/" className="brand" aria-label={`${salon.name} home`}>
+            <span className="brand-mark" aria-hidden="true">
+              B&amp;B
+            </span>
+            <BrandName name={salon.name} />
+          </Link>
+          <nav className="nav-links">
+            <NavLink to="/book">Book</NavLink>
+            {user && <NavLink to="/my-appointments">My Appointments</NavLink>}
+            {user?.role === 'admin' && (
+              <>
+                <NavLink to="/admin" end>
+                  Dashboard
+                </NavLink>
+                <NavLink to="/admin/services">Services</NavLink>
+                <NavLink to="/admin/hours">Hours</NavLink>
+              </>
+            )}
+            {user ? (
+              <button type="button" className="btn btn-ghost" onClick={handleLogout}>
+                Log out
+              </button>
+            ) : (
+              <>
+                <NavLink to="/login">Log in</NavLink>
+                <Link to="/register" className="btn btn-primary btn-sm">
+                  Sign up
+                </Link>
+              </>
+            )}
+          </nav>
+        </div>
+      </header>
+    </>
   );
 }

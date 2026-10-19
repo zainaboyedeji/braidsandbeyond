@@ -18,9 +18,9 @@ const BOOKING_DETAILS_SQL = `
     a.notes,
     a.created_at,
     u.id         AS client_id,
-    u.full_name  AS client_name,
-    u.email      AS client_email,
-    u.phone      AS client_phone,
+    COALESCE(a.contact_name, u.full_name)  AS client_name,
+    COALESCE(a.contact_email, u.email)     AS client_email,
+    COALESCE(a.contact_phone, u.phone)     AS client_phone,
     s.id         AS service_id,
     s.name       AS service_name,
     s.duration_minutes,
@@ -40,7 +40,7 @@ const BOOKING_DETAILS_SQL = `
  *  5. SELECT with JOINs      -> client + service data for emails
  *  6. COMMIT (or ROLLBACK on any error)
  */
-async function createBooking({ clientId, serviceId, startTime, notes }) {
+async function createBooking({ clientId, serviceId, startTime, notes, contact }) {
   const start = new Date(startTime);
   if (Number.isNaN(start.getTime())) {
     throw new HttpError(400, 'startTime must be a valid ISO 8601 date-time');
@@ -105,11 +105,24 @@ async function createBooking({ clientId, serviceId, startTime, notes }) {
     }
 
     const insertResult = await client.query(
-      `INSERT INTO appointments (client_id, service_id, start_time, end_time, status, notes)
-       VALUES ($1, $2, $3, $4, 'confirmed', $5)
+      `INSERT INTO appointments
+         (client_id, service_id, start_time, end_time, status, notes, contact_name, contact_email, contact_phone)
+       VALUES ($1, $2, $3, $4, 'confirmed', $5, $6, $7, $8)
        RETURNING id`,
-      [clientId, serviceId, start.toISOString(), end.toISOString(), notes || null]
+      [
+        clientId,
+        serviceId,
+        start.toISOString(),
+        end.toISOString(),
+        notes || null,
+        contact.fullName,
+        contact.email,
+        contact.phone,
+      ]
     );
+
+    // Accounts created before phone was required: remember the number for next time
+    await client.query(`UPDATE users SET phone = $1 WHERE id = $2 AND phone IS NULL`, [contact.phone, clientId]);
 
     const detailsResult = await client.query(BOOKING_DETAILS_SQL, [insertResult.rows[0].id]);
     return detailsResult.rows[0];

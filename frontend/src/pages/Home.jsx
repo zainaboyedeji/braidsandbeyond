@@ -24,34 +24,27 @@ export default function Home() {
   return (
     <>
       <section className="hero">
-        <h1>Welcome to {salon.name}</h1>
-        <p>Pick a service and grab a slot in seconds.</p>
-        <Link to="/book" className="btn btn-primary">
-          Book an appointment
-        </Link>
+        <span className="hero-eyebrow">Braids · Styling · Beyond</span>
+        <h1>
+          Your crown, <em>beautifully</em> done
+        </h1>
+        <p>
+          Knotless braids, cornrows, twists and more at {salon.name}. Choose your style and book a time that suits you.
+        </p>
+        <div className="actions">
+          <Link to="/book" className="btn btn-dark">
+            Book an appointment
+          </Link>
+          <a href="#services" className="btn btn-outline">
+            View services
+          </a>
+        </div>
       </section>
 
-      {salon.hours.length > 0 && (
-        <section className="card opening-hours">
-          <h2 className="section-title">Opening hours</h2>
-          <dl>
-            {DISPLAY_ORDER.map((weekday) => {
-              const h = salon.hours.find((x) => x.weekday === weekday);
-              if (!h) return null;
-              return (
-                <div key={weekday} className="opening-hours-row">
-                  <dt>{WEEKDAYS[weekday]}</dt>
-                  <dd className={h.is_open ? '' : 'muted'}>
-                    {h.is_open ? `${formatClock(h.open_time)} – ${formatClock(h.close_time)}` : 'Closed'}
-                  </dd>
-                </div>
-              );
-            })}
-          </dl>
-        </section>
-      )}
-
-      <h2 className="section-title">Our services</h2>
+      <div className="section-head" id="services">
+        <h2>Our services</h2>
+        <p>Every style, done with care</p>
+      </div>
       {error && <div className="alert alert-error">{error}</div>}
       {loading ? (
         <p className="muted">Loading services…</p>
@@ -61,8 +54,12 @@ export default function Home() {
         <div className="grid">
           {services.map((service) => (
             <article key={service.id} className="card service-card">
-              {service.image_path && (
+              {service.image_path ? (
                 <img className="service-image" src={assetUrl(service.image_path)} alt={service.name} loading="lazy" />
+              ) : (
+                <div className="service-image-placeholder" aria-hidden="true">
+                  {service.name.charAt(0)}
+                </div>
               )}
               <h3>{service.name}</h3>
               {service.description && <p className="muted">{service.description}</p>}
@@ -70,12 +67,38 @@ export default function Home() {
                 <span>{formatDuration(service.duration_minutes)}</span>
                 <strong>{formatPrice(service.price_cents, salon.currency)}</strong>
               </div>
-              <Link to={`/book?serviceId=${service.id}`} className="btn btn-outline">
-                Book this
+              <Link to={`/book?serviceId=${service.id}`} className="btn btn-primary">
+                Book now
               </Link>
             </article>
           ))}
         </div>
+      )}
+
+      {salon.hours.length > 0 && (
+        <>
+          <div className="section-head">
+            <h2>Visit us</h2>
+            <p>Bookings are available during these hours</p>
+          </div>
+          <section className="card opening-hours">
+            <h2>Opening hours</h2>
+            <dl>
+              {DISPLAY_ORDER.map((weekday) => {
+                const h = salon.hours.find((x) => x.weekday === weekday);
+                if (!h) return null;
+                return (
+                  <div key={weekday} className="opening-hours-row">
+                    <dt>{WEEKDAYS[weekday]}</dt>
+                    <dd className={h.is_open ? '' : 'muted'}>
+                      {h.is_open ? `${formatClock(h.open_time)} – ${formatClock(h.close_time)}` : 'Closed'}
+                    </dd>
+                  </div>
+                );
+              })}
+            </dl>
+          </section>
+        </>
       )}
     </>
   );

@@ -36,7 +36,10 @@ router.get(
 
     const { rows } = await db.query(
       `SELECT a.id, a.start_time, a.end_time, a.status, a.notes, a.created_at,
-              u.id AS client_id, u.full_name AS client_name, u.email AS client_email, u.phone AS client_phone,
+              u.id AS client_id,
+              COALESCE(a.contact_name, u.full_name) AS client_name,
+              COALESCE(a.contact_email, u.email)    AS client_email,
+              COALESCE(a.contact_phone, u.phone)    AS client_phone,
               s.id AS service_id, s.name AS service_name, s.duration_minutes, s.price_cents
          FROM appointments a
          JOIN users u    ON u.id = a.client_id

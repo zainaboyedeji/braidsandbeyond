@@ -34,6 +34,16 @@ export default function Book() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [confirmation, setConfirmation] = useState(null);
+  const [contact, setContact] = useState({ fullName: '', email: '', phone: '' });
+
+  // Pre-fill contact details from the account; the customer can still edit them for this booking
+  useEffect(() => {
+    if (user) setContact({ fullName: user.full_name || '', email: user.email || '', phone: user.phone || '' });
+  }, [user]);
+
+  function updateContact(field) {
+    return (e) => setContact((prev) => ({ ...prev, [field]: e.target.value }));
+  }
 
   useEffect(() => {
     api
@@ -67,9 +77,11 @@ export default function Book() {
   const selectedService = services.find((s) => String(s.id) === String(serviceId));
   const isClosedDay = salon.hours.some((h) => h.weekday === weekdayOf(date) && !h.is_open);
 
-  async function handleBook() {
+  async function handleBook(e) {
+    e.preventDefault();
     if (!user) {
-      navigate('/login', { state: { from: location.pathname + location.search } });
+      // Customers must have an account; bring them back to this slot afterwards
+      navigate('/register', { state: { from: location.pathname + location.search } });
       return;
     }
     setError('');
@@ -79,6 +91,7 @@ export default function Book() {
         serviceId: Number(serviceId),
         startTime: selectedSlot.start_time,
         notes: notes.trim() || undefined,
+        contact,
       });
       setConfirmation(data);
     } catch (err) {
@@ -160,12 +173,20 @@ export default function Book() {
           </label>
         </div>
 
-        {selectedService?.image_path && (
-          <img
-            className="book-service-image"
-            src={assetUrl(selectedService.image_path)}
-            alt={selectedService.name}
-          />
+        {selectedService && (
+          <div className="book-service">
+            {selectedService.image_path && (
+              <img src={assetUrl(selectedService.image_path)} alt={selectedService.name} />
+            )}
+            <div>
+              <strong>{selectedService.name}</strong>
+              {selectedService.description && <div className="muted">{selectedService.description}</div>}
+              <div className="small">
+                {formatDuration(selectedService.duration_minutes)} ·{' '}
+                {formatPrice(selectedService.price_cents, salon.currency)}
+              </div>
+            </div>
+          </div>
         )}
 
         {serviceId && (
@@ -197,12 +218,61 @@ export default function Book() {
         )}
 
         {selectedSlot && selectedService && (
-          <div className="summary">
+          <form className="summary" onSubmit={handleBook}>
             <p>
               <strong>{selectedService.name}</strong> · {formatTime(selectedSlot.start_time, salon.timezone)} –{' '}
               {formatTime(selectedSlot.end_time, salon.timezone)} ·{' '}
               {formatPrice(selectedService.price_cents, salon.currency)}
             </p>
+            {user ? (
+              <fieldset className="contact-fields">
+                <legend>Your details</legend>
+                <div className="form-row">
+                  <label>
+                    Full name
+                    <input
+                      value={contact.fullName}
+                      onChange={updateContact('fullName')}
+                      autoComplete="name"
+                      required
+                      minLength={2}
+                      maxLength={120}
+                    />
+                  </label>
+                  <label>
+                    Email address
+                    <input
+                      type="email"
+                      value={contact.email}
+                      onChange={updateContact('email')}
+                      autoComplete="email"
+                      required
+                    />
+                  </label>
+                  <label>
+                    Phone number
+                    <input
+                      type="tel"
+                      value={contact.phone}
+                      onChange={updateContact('phone')}
+                      autoComplete="tel"
+                      placeholder="+234 801 234 5678"
+                      pattern="\+?[0-9\s\(\)\.\-]{7,20}"
+                      title="Enter a valid phone number, e.g. +234 801 234 5678"
+                      required
+                    />
+                  </label>
+                </div>
+              </fieldset>
+            ) : (
+              <p className="muted">
+                You need an account to book. Sign up (or{' '}
+                <Link to="/login" state={{ from: location.pathname + location.search }}>
+                  log in
+                </Link>
+                ) and we'll bring you right back to this time.
+              </p>
+            )}
             <label>
               Notes <span className="muted">(optional)</span>
               <textarea
@@ -213,10 +283,10 @@ export default function Book() {
                 placeholder="Anything we should know?"
               />
             </label>
-            <button type="button" className="btn btn-primary" onClick={handleBook} disabled={submitting}>
-              {submitting ? 'Booking…' : user ? 'Confirm booking' : 'Log in to book'}
+            <button type="submit" className="btn btn-primary" disabled={submitting}>
+              {submitting ? 'Booking…' : user ? 'Confirm booking' : 'Sign up to book'}
             </button>
-          </div>
+          </form>
         )}
       </div>
     </>

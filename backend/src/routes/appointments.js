@@ -3,7 +3,7 @@ const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const { sendBookingEmails } = require('../services/email');
 const bookingService = require('../services/bookingService');
-const { HttpError, asyncHandler, parseId } = require('../utils/http');
+const { HttpError, asyncHandler, parseId, parseContact } = require('../utils/http');
 
 const router = express.Router();
 
@@ -27,12 +27,14 @@ router.post(
     if (!req.body.startTime) {
       throw new HttpError(400, 'startTime is required');
     }
+    const contact = parseContact(req.body.contact || {});
 
     const booking = await bookingService.createBooking({
       clientId: req.user.id,
       serviceId,
       startTime: req.body.startTime,
       notes,
+      contact,
     });
 
     // Booking is COMMITTED at this point. Email failure must not undo it.

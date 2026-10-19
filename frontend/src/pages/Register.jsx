@@ -44,15 +44,31 @@ export default function Register() {
       <form onSubmit={handleSubmit} className="form">
         <label>
           Full name
-          <input value={form.fullName} onChange={update('fullName')} required minLength={2} autoFocus />
+          <input
+            value={form.fullName}
+            onChange={update('fullName')}
+            autoComplete="name"
+            required
+            minLength={2}
+            autoFocus
+          />
         </label>
         <label>
           Email
-          <input type="email" value={form.email} onChange={update('email')} required />
+          <input type="email" value={form.email} onChange={update('email')} autoComplete="email" required />
         </label>
         <label>
-          Phone <span className="muted">(optional)</span>
-          <input type="tel" value={form.phone} onChange={update('phone')} />
+          Phone number
+          <input
+            type="tel"
+            value={form.phone}
+            onChange={update('phone')}
+            autoComplete="tel"
+            placeholder="+234 801 234 5678"
+            pattern="\+?[0-9\s\(\)\.\-]{7,20}"
+            title="Enter a valid phone number, e.g. +234 801 234 5678"
+            required
+          />
         </label>
         <label>
           Password <span className="muted">(min 8 characters)</span>

@@ -78,6 +78,12 @@ CREATE TABLE IF NOT EXISTS appointments (
   ) WHERE (status IN ('pending', 'confirmed'))
 );
 
+-- Contact details the customer confirmed on the booking form (may differ from their account).
+-- NULL on older bookings, which fall back to the users row.
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS contact_name  VARCHAR(120);
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS contact_email VARCHAR(255);
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS contact_phone VARCHAR(30);
+
 CREATE INDEX IF NOT EXISTS appointments_client_idx     ON appointments (client_id);
 CREATE INDEX IF NOT EXISTS appointments_service_idx    ON appointments (service_id);
 CREATE INDEX IF NOT EXISTS appointments_start_time_idx ON appointments (start_time);

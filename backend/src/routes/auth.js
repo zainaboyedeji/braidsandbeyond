@@ -2,7 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const db = require('../db');
 const { signToken, requireAuth } = require('../middleware/auth');
-const { HttpError, asyncHandler, EMAIL_RE } = require('../utils/http');
+const { HttpError, asyncHandler, parseContact } = require('../utils/http');
 
 const router = express.Router();
 
@@ -12,22 +12,10 @@ const PUBLIC_USER_FIELDS = 'id, full_name, email, phone, role, created_at';
 router.post(
   '/register',
   asyncHandler(async (req, res) => {
-    const fullName = (req.body.fullName || '').trim();
-    const email = (req.body.email || '').trim().toLowerCase();
-    const phone = (req.body.phone || '').trim() || null;
+    const { fullName, email, phone } = parseContact(req.body);
     const password = req.body.password || '';
-
-    if (fullName.length < 2 || fullName.length > 120) {
-      throw new HttpError(400, 'Full name must be 2–120 characters');
-    }
-    if (!EMAIL_RE.test(email)) {
-      throw new HttpError(400, 'A valid email is required');
-    }
     if (password.length < 8) {
       throw new HttpError(400, 'Password must be at least 8 characters');
-    }
-    if (phone && phone.length > 30) {
-      throw new HttpError(400, 'Phone number is too long');
     }
 
     const passwordHash = await bcrypt.hash(password, 12);

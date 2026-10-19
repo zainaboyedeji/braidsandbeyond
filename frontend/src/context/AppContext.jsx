@@ -4,7 +4,7 @@ import { api, getToken, setToken } from '../api/client';
 const AppContext = createContext(null);
 
 const DEFAULT_SALON = {
-  name: 'Salon',
+  name: 'Braids and Beyond',
   currency: 'USD',
   timezone: 'UTC',
   slotIntervalMinutes: 15,
