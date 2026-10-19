@@ -3,6 +3,7 @@ const db = require('../db');
 const config = require('../config');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const bookingService = require('../services/bookingService');
+const { getBusinessHours, setBusinessHours } = require('../services/businessHours');
 const { HttpError, asyncHandler, parseId } = require('../utils/http');
 
 const router = express.Router();
@@ -80,6 +81,22 @@ router.get(
       revenueCents: Number(r.revenue_cents),
       clientCount: Number(r.client_count),
     });
+  })
+);
+
+// GET /api/admin/business-hours
+router.get(
+  '/business-hours',
+  asyncHandler(async (req, res) => {
+    res.json({ hours: await getBusinessHours() });
+  })
+);
+
+// PUT /api/admin/business-hours  { hours: [{ weekday, isOpen, openTime, closeTime }, ...7] }
+router.put(
+  '/business-hours',
+  asyncHandler(async (req, res) => {
+    res.json({ hours: await setBusinessHours(req.body.hours) });
   })
 );
 

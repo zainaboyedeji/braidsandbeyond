@@ -1,5 +1,8 @@
 export function formatPrice(cents, currency = 'USD') {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(cents / 100);
+  // narrowSymbol: "₦15,000.00" rather than "NGN 15,000.00"
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency, currencyDisplay: 'narrowSymbol' }).format(
+    cents / 100
+  );
 }
 
 export function formatTime(iso, timeZone) {
@@ -40,4 +43,19 @@ export function formatDuration(minutes) {
   if (h && m) return `${h}h ${m}m`;
   if (h) return `${h}h`;
   return `${m}m`;
+}
+
+export const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+// "13:30" -> "1:30 PM"
+export function formatClock(hhmm) {
+  const [h, m] = hhmm.split(':').map(Number);
+  const suffix = h >= 12 ? 'PM' : 'AM';
+  return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${suffix}`;
+}
+
+// Weekday (0 = Sunday) of a YYYY-MM-DD calendar date
+export function weekdayOf(ymd) {
+  const [y, m, d] = ymd.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
 }

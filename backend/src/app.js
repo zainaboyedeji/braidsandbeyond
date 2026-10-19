@@ -6,6 +6,8 @@ const authRoutes = require('./routes/auth');
 const serviceRoutes = require('./routes/services');
 const appointmentRoutes = require('./routes/appointments');
 const adminRoutes = require('./routes/admin');
+const { getBusinessHours } = require('./services/businessHours');
+const { asyncHandler } = require('./utils/http');
 const { notFound, errorHandler } = require('./middleware/errorHandler');
 
 const app = express();
@@ -24,10 +26,17 @@ app.get('/api/health', async (req, res) => {
 });
 
 // Public salon settings the frontend needs for display
-app.get('/api/config', (req, res) => {
-  const { name, currency, timezone, openHour, closeHour, slotIntervalMinutes } = config.salon;
-  res.json({ name, currency, timezone, openHour, closeHour, slotIntervalMinutes });
-});
+app.get(
+  '/api/config',
+  asyncHandler(async (req, res) => {
+    const { name, currency, timezone, slotIntervalMinutes } = config.salon;
+    const hours = await getBusinessHours();
+    res.json({ name, currency, timezone, slotIntervalMinutes, hours });
+  })
+);
+
+// Uploaded service photos
+app.use('/uploads', express.static(config.uploadsDir, { maxAge: '7d', fallthrough: false }));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/services', serviceRoutes);

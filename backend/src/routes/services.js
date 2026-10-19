@@ -1,11 +1,58 @@
+const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 const express = require('express');
+const multer = require('multer');
+const config = require('../config');
 const db = require('../db');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const { HttpError, asyncHandler, parseId } = require('../utils/http');
 
 const router = express.Router();
 
-const SERVICE_FIELDS = 'id, name, description, duration_minutes, price_cents, is_active, created_at, updated_at';
+const SERVICE_FIELDS =
+  'id, name, description, duration_minutes, price_cents, is_active, image_path, created_at, updated_at';
+// Same columns, qualified for the UPDATE ... FROM queries below
+const SERVICE_FIELDS_S = SERVICE_FIELDS.split(', ')
+  .map((f) => `s.${f}`)
+  .join(', ');
+
+const IMAGE_DIR = path.join(config.uploadsDir, 'services');
+const IMAGE_TYPES = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp' };
+const MAX_IMAGE_MB = 5;
+
+fs.mkdirSync(IMAGE_DIR, { recursive: true });
+
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: IMAGE_DIR,
+    // Random name: never trust the client's filename
+    filename: (req, file, cb) => cb(null, crypto.randomBytes(16).toString('hex') + IMAGE_TYPES[file.mimetype]),
+  }),
+  limits: { fileSize: MAX_IMAGE_MB * 1024 * 1024, files: 1 },
+  fileFilter: (req, file, cb) => {
+    if (IMAGE_TYPES[file.mimetype]) cb(null, true);
+    else cb(new HttpError(400, 'Image must be a JPG, PNG or WebP file'));
+  },
+});
+
+// Runs multer and turns its errors (e.g. file too large) into 400s
+function uploadImage(req, res, next) {
+  upload.single('image')(req, res, (err) => {
+    if (err instanceof multer.MulterError) {
+      return next(
+        new HttpError(400, err.code === 'LIMIT_FILE_SIZE' ? `Image must be under ${MAX_IMAGE_MB} MB` : err.message)
+      );
+    }
+    return next(err);
+  });
+}
+
+function removeImageFile(imagePath) {
+  if (!imagePath) return;
+  const file = path.join(IMAGE_DIR, path.basename(imagePath));
+  fs.promises.unlink(file).catch(() => {});
+}
 
 function validateService(body, { partial = false } = {}) {
   const out = {};
@@ -109,6 +156,62 @@ router.delete(
     );
     if (!rows[0]) throw new HttpError(404, 'Service not found');
     res.json({ service: rows[0] });
+  })
+);
+
+// POST /api/services/:id/image  (admin, multipart/form-data with field "image")
+router.post(
+  '/:id/image',
+  requireAuth,
+  requireAdmin,
+  uploadImage,
+  asyncHandler(async (req, res) => {
+    if (!req.file) throw new HttpError(400, 'Choose an image to upload');
+    const id = parseId(req.params.id);
+    const newPath = `/uploads/services/${req.file.filename}`;
+
+    const { rows } = await db
+      .query(
+        `UPDATE services s SET image_path = $1
+           FROM (SELECT image_path FROM services WHERE id = $2 FOR UPDATE) old
+          WHERE s.id = $2
+          RETURNING old.image_path AS old_image_path, ${SERVICE_FIELDS_S}`,
+        [newPath, id]
+      )
+      .catch((err) => {
+        removeImageFile(newPath);
+        throw err;
+      });
+    if (!rows[0]) {
+      removeImageFile(newPath);
+      throw new HttpError(404, 'Service not found');
+    }
+
+    const { old_image_path: oldPath, ...service } = rows[0];
+    removeImageFile(oldPath);
+    res.json({ service });
+  })
+);
+
+// DELETE /api/services/:id/image  (admin)
+router.delete(
+  '/:id/image',
+  requireAuth,
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    const id = parseId(req.params.id);
+    const { rows } = await db.query(
+      `UPDATE services s SET image_path = NULL
+         FROM (SELECT image_path FROM services WHERE id = $1 FOR UPDATE) old
+        WHERE s.id = $1
+        RETURNING old.image_path AS old_image_path, ${SERVICE_FIELDS_S}`,
+      [id]
+    );
+    if (!rows[0]) throw new HttpError(404, 'Service not found');
+
+    const { old_image_path: oldPath, ...service } = rows[0];
+    removeImageFile(oldPath);
+    res.json({ service });
   })
 );
 

@@ -61,33 +61,32 @@ async function createBooking({ clientId, serviceId, startTime, notes }) {
 
     const end = new Date(start.getTime() + service.duration_minutes * 60 * 1000);
 
-    // Validate against business hours in the salon's local timezone
+    // Validate against that weekday's business hours in the salon's local timezone.
+    // The slot grid is anchored at opening time, so 09:30 opening with 60-min slots gives 09:30, 10:30, …
     const hoursResult = await client.query(
       `SELECT
          $1::timestamptz > NOW()                                         AS in_future,
          ($1::timestamptz AT TIME ZONE $3)::date
            = (($2::timestamptz - INTERVAL '1 microsecond') AT TIME ZONE $3)::date AS same_day,
-         ($1::timestamptz AT TIME ZONE $3)::time >= make_time($4, 0, 0)  AS after_open,
-         ($2::timestamptz AT TIME ZONE $3)::time <= make_time($5, 0, 0)  AS before_close,
-         (EXTRACT(EPOCH FROM ($1::timestamptz AT TIME ZONE $3)::time)::int % ($6 * 60)) = 0 AS on_grid`,
-      [
-        start.toISOString(),
-        end.toISOString(),
-        config.salon.timezone,
-        config.salon.openHour,
-        config.salon.closeHour,
-        config.salon.slotIntervalMinutes,
-      ]
+         COALESCE(h.is_open, FALSE)                                      AS is_open,
+         ($1::timestamptz AT TIME ZONE $3)::time >= h.open_time          AS after_open,
+         ($2::timestamptz AT TIME ZONE $3)::time <= h.close_time         AS before_close,
+         (EXTRACT(EPOCH FROM ($1::timestamptz AT TIME ZONE $3)::time - h.open_time)::int % ($4 * 60)) = 0 AS on_grid,
+         to_char(h.open_time, 'HH24:MI')  AS open_time,
+         to_char(h.close_time, 'HH24:MI') AS close_time
+       FROM (SELECT 1) one
+       LEFT JOIN business_hours h ON h.weekday = EXTRACT(DOW FROM ($1::timestamptz AT TIME ZONE $3))`,
+      [start.toISOString(), end.toISOString(), config.salon.timezone, config.salon.slotIntervalMinutes]
     );
     const check = hoursResult.rows[0];
     if (!check.in_future) {
       throw new HttpError(400, 'You cannot book a time in the past');
     }
+    if (!check.is_open) {
+      throw new HttpError(400, 'The salon is closed on that day');
+    }
     if (!check.same_day || !check.after_open || !check.before_close) {
-      throw new HttpError(
-        400,
-        `Appointments must fit within business hours (${config.salon.openHour}:00–${config.salon.closeHour}:00)`
-      );
+      throw new HttpError(400, `Appointments must fit within business hours (${check.open_time}–${check.close_time})`);
     }
     if (!check.on_grid) {
       throw new HttpError(400, `Start time must be on a ${config.salon.slotIntervalMinutes}-minute boundary`);
@@ -137,13 +136,15 @@ async function getAvailability({ serviceId, date }) {
 
   const { rows } = await db.query(
     `WITH bounds AS (
-       SELECT ($1::date + make_interval(hours => $2)) AT TIME ZONE $4 AS open_at,
-              ($1::date + make_interval(hours => $3)) AT TIME ZONE $4 AS close_at
+       SELECT ($1::date + h.open_time)  AT TIME ZONE $2 AS open_at,
+              ($1::date + h.close_time) AT TIME ZONE $2 AS close_at
+         FROM business_hours h
+        WHERE h.weekday = EXTRACT(DOW FROM $1::date) AND h.is_open
      ),
      slots AS (
-       SELECT slot AS start_time, slot + make_interval(mins => $5) AS end_time
+       SELECT slot AS start_time, slot + make_interval(mins => $3) AS end_time
          FROM bounds,
-              generate_series(open_at, close_at - make_interval(mins => $5), make_interval(mins => $6)) AS slot
+              generate_series(open_at, close_at - make_interval(mins => $3), make_interval(mins => $4)) AS slot
      )
      SELECT s.start_time, s.end_time
        FROM slots s
@@ -155,14 +156,7 @@ async function getAvailability({ serviceId, date }) {
              AND tstzrange(a.start_time, a.end_time, '[)') && tstzrange(s.start_time, s.end_time, '[)')
         )
       ORDER BY s.start_time`,
-    [
-      date,
-      config.salon.openHour,
-      config.salon.closeHour,
-      config.salon.timezone,
-      service.duration_minutes,
-      config.salon.slotIntervalMinutes,
-    ]
+    [date, config.salon.timezone, service.duration_minutes, config.salon.slotIntervalMinutes]
   );
 
   return {

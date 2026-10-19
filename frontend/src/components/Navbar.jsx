@@ -25,6 +25,7 @@ export default function Navbar() {
                 Dashboard
               </NavLink>
               <NavLink to="/admin/services">Services</NavLink>
+              <NavLink to="/admin/hours">Hours</NavLink>
             </>
           )}
           {user ? (

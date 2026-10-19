@@ -22,6 +22,13 @@ npm run db:admin -- "Owner Name" owner@yoursalon.com "StrongPassword123"
 npm run dev
 ```
 
+## Admin
+
+Log in at `/admin` with the account from step 4. From there:
+
+- **Services** (`/admin/services`): add/edit services and upload a photo (JPG/PNG/WebP, max 5 MB). Photos are stored in `backend/uploads/` and served at `/uploads/...`.
+- **Hours** (`/admin/hours`): set opening hours per weekday or mark a day closed. Booking and availability use these immediately.
+
 ## Double-booking protection
 
 `backend/src/services/bookingService.js` → `createBooking()`:
@@ -53,6 +60,8 @@ After commit, admin + client emails go out in parallel via `Promise.all`. An ema
 | GET | `/api/admin/appointments?date=&status=` | admin |
 | PATCH | `/api/admin/appointments/:id/status` `{ status }` | admin |
 | GET | `/api/admin/stats` | admin |
+| GET / PUT | `/api/admin/business-hours` `{ hours: [{ weekday, isOpen, openTime, closeTime }] }` | admin |
+| POST / DELETE | `/api/services/:id/image` (multipart field `image`) | admin |
 
 ## Production
 

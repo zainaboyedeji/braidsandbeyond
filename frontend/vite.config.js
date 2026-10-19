@@ -10,6 +10,7 @@ export default defineConfig(({ mode }) => {
       // Dev: /api/* is forwarded to Express, so no CORS setup is needed locally
       proxy: {
         '/api': env.VITE_DEV_API_TARGET || 'http://localhost:5000',
+        '/uploads': env.VITE_DEV_API_TARGET || 'http://localhost:5000',
       },
     },
   };

@@ -42,7 +42,11 @@ function formatTime(date) {
 }
 
 function formatPrice(cents) {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: config.salon.currency }).format(cents / 100);
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: config.salon.currency,
+    currencyDisplay: 'narrowSymbol',
+  }).format(cents / 100);
 }
 
 function layout(title, bodyHtml) {

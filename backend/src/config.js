@@ -43,17 +43,11 @@ if (!isValidTimeZone(timezone)) {
   process.exit(1);
 }
 
-const openHour = toInt('BUSINESS_OPEN_HOUR', 9, { min: 0, max: 23 });
-const closeHour = toInt('BUSINESS_CLOSE_HOUR', 18, { min: 1, max: 23 });
-if (closeHour <= openHour) {
-  console.error('BUSINESS_CLOSE_HOUR must be greater than BUSINESS_OPEN_HOUR');
-  process.exit(1);
-}
-
 const config = {
   port: toInt('PORT', 5000, { min: 1, max: 65535 }),
   nodeEnv: process.env.NODE_ENV || 'development',
   clientOrigin: process.env.CLIENT_ORIGIN || 'http://localhost:5173',
+  uploadsDir: path.resolve(__dirname, '..', 'uploads'),
 
   db: {
     connectionString: process.env.DATABASE_URL,
@@ -69,8 +63,6 @@ const config = {
     name: process.env.SALON_NAME || 'Our Salon',
     currency: (process.env.SALON_CURRENCY || 'USD').toUpperCase(),
     timezone,
-    openHour,
-    closeHour,
     slotIntervalMinutes: toInt('SLOT_INTERVAL_MINUTES', 15, { min: 5, max: 120 }),
   },
 

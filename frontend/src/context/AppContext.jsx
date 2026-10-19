@@ -7,9 +7,8 @@ const DEFAULT_SALON = {
   name: 'Salon',
   currency: 'USD',
   timezone: 'UTC',
-  openHour: 9,
-  closeHour: 18,
   slotIntervalMinutes: 15,
+  hours: [],
 };
 
 export function AppProvider({ children }) {
@@ -54,14 +53,19 @@ export function AppProvider({ children }) {
     return data.user;
   }, []);
 
+  // Re-fetch after the admin changes opening hours
+  const refreshSalon = useCallback(async () => {
+    setSalon(await api.get('/config'));
+  }, []);
+
   const logout = useCallback(() => {
     setToken(null);
     setUser(null);
   }, []);
 
   const value = useMemo(
-    () => ({ user, salon, loading, login, register, logout }),
-    [user, salon, loading, login, register, logout]
+    () => ({ user, salon, loading, login, register, logout, refreshSalon }),
+    [user, salon, loading, login, register, logout, refreshSalon]
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

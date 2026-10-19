@@ -25,8 +25,15 @@ export class ApiError extends Error {
   }
 }
 
+// Turns a stored path like /uploads/services/x.jpg into a URL that works when the API is on another domain
+export function assetUrl(path) {
+  return path ? `${BASE_URL}${path}` : null;
+}
+
 async function request(method, path, body) {
-  const headers = { 'Content-Type': 'application/json' };
+  const isForm = body instanceof FormData;
+  // FormData sets its own multipart Content-Type (with boundary)
+  const headers = isForm ? {} : { 'Content-Type': 'application/json' };
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
 
@@ -35,7 +42,7 @@ async function request(method, path, body) {
     res = await fetch(`${BASE_URL}/api${path}`, {
       method,
       headers,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
+      body: body === undefined || isForm ? body : JSON.stringify(body),
     });
   } catch {
     throw new ApiError(0, 'Cannot reach the server. Is the backend running?');
@@ -53,5 +60,7 @@ export const api = {
   get: (path) => request('GET', path),
   post: (path, body) => request('POST', path, body ?? {}),
   patch: (path, body) => request('PATCH', path, body ?? {}),
+  put: (path, body) => request('PUT', path, body ?? {}),
+  upload: (path, formData) => request('POST', path, formData),
   del: (path) => request('DELETE', path),
 };

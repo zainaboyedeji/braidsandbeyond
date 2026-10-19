@@ -1,8 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { api } from '../api/client';
+import { api, assetUrl } from '../api/client';
 import { useApp } from '../context/AppContext';
-import { addDays, formatDateTime, formatDuration, formatPrice, formatTime, todayInZone } from '../utils/format';
+import {
+  addDays,
+  formatDateTime,
+  formatDuration,
+  formatPrice,
+  formatTime,
+  todayInZone,
+  weekdayOf,
+} from '../utils/format';
 
 const BOOKING_WINDOW_DAYS = 60;
 
@@ -57,6 +65,7 @@ export default function Book() {
   }, [loadSlots]);
 
   const selectedService = services.find((s) => String(s.id) === String(serviceId));
+  const isClosedDay = salon.hours.some((h) => h.weekday === weekdayOf(date) && !h.is_open);
 
   async function handleBook() {
     if (!user) {
@@ -151,6 +160,14 @@ export default function Book() {
           </label>
         </div>
 
+        {selectedService?.image_path && (
+          <img
+            className="book-service-image"
+            src={assetUrl(selectedService.image_path)}
+            alt={selectedService.name}
+          />
+        )}
+
         {serviceId && (
           <>
             <h3>
@@ -159,7 +176,9 @@ export default function Book() {
             {loadingSlots ? (
               <p className="muted">Checking availability…</p>
             ) : slots.length === 0 ? (
-              <p className="muted">No open slots on this day. Try another date.</p>
+              <p className="muted">
+                {isClosedDay ? "We're closed on this day." : 'No open slots on this day.'} Try another date.
+              </p>
             ) : (
               <div className="slot-grid">
                 {slots.map((slot) => (

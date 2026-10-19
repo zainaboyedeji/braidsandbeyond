@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
-import { api } from '../api/client';
+import { useEffect, useRef, useState } from 'react';
+import { api, assetUrl } from '../api/client';
 import { useApp } from '../context/AppContext';
 import { formatDuration, formatPrice } from '../utils/format';
 
 const EMPTY_FORM = { name: '', description: '', durationMinutes: 30, price: '' };
+const MAX_IMAGE_MB = 5;
 
 export default function AdminServices() {
   const { salon } = useApp();
@@ -12,6 +13,24 @@ export default function AdminServices() {
   const [editingId, setEditingId] = useState(null);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [currentImage, setCurrentImage] = useState(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [formError, setFormError] = useState('');
+  const fileInput = useRef(null);
+  const dialogRef = useRef(null);
+
+  // Native <dialog>: showModal() gives the backdrop, focus trapping and Esc-to-close
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    if (modalOpen && !dialog.open) dialog.showModal();
+    if (!modalOpen && dialog.open) dialog.close();
+  }, [modalOpen]);
+
+  // Free the object URL when the preview changes or the page unmounts
+  useEffect(() => () => imagePreview && URL.revokeObjectURL(imagePreview), [imagePreview]);
 
   async function load() {
     try {
@@ -30,28 +49,79 @@ export default function AdminServices() {
     return (e) => setForm((prev) => ({ ...prev, [field]: e.target.value }));
   }
 
+  function chooseImage(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      setFormError('Image must be a JPG, PNG or WebP file');
+      e.target.value = '';
+      return;
+    }
+    if (file.size > MAX_IMAGE_MB * 1024 * 1024) {
+      setFormError(`Image must be under ${MAX_IMAGE_MB} MB`);
+      e.target.value = '';
+      return;
+    }
+    setFormError('');
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+  }
+
+  function clearChosenImage() {
+    setImageFile(null);
+    setImagePreview(null);
+    if (fileInput.current) fileInput.current.value = '';
+  }
+
+  async function removeCurrentImage() {
+    setFormError('');
+    try {
+      await api.del(`/services/${editingId}/image`);
+      setCurrentImage(null);
+      await load();
+    } catch (err) {
+      setFormError(err.message);
+    }
+  }
+
   function startEdit(service) {
     setEditingId(service.id);
+    setCurrentImage(service.image_path);
+    clearChosenImage();
     setForm({
       name: service.name,
       description: service.description || '',
       durationMinutes: service.duration_minutes,
       price: (service.price_cents / 100).toFixed(2),
     });
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setFormError('');
+    setModalOpen(true);
+  }
+
+  function openAdd() {
+    resetForm();
+    setModalOpen(true);
   }
 
   function resetForm() {
     setEditingId(null);
     setForm(EMPTY_FORM);
+    setCurrentImage(null);
+    setFormError('');
+    clearChosenImage();
+  }
+
+  function closeModal() {
+    setModalOpen(false);
+    resetForm();
   }
 
   async function handleSubmit(e) {
     e.preventDefault();
-    setError('');
+    setFormError('');
     const priceCents = Math.round(Number(form.price) * 100);
     if (!Number.isFinite(priceCents) || priceCents < 0) {
-      setError('Enter a valid price');
+      setFormError('Enter a valid price');
       return;
     }
     const payload = {
@@ -63,12 +133,26 @@ export default function AdminServices() {
 
     setSaving(true);
     try {
-      if (editingId) await api.patch(`/services/${editingId}`, payload);
-      else await api.post('/services', payload);
-      resetForm();
+      const data = editingId
+        ? await api.patch(`/services/${editingId}`, payload)
+        : await api.post('/services', payload);
+      if (imageFile) {
+        const formData = new FormData();
+        formData.append('image', imageFile);
+        try {
+          await api.upload(`/services/${data.service.id}/image`, formData);
+        } catch (err) {
+          // Details were saved; keep the form open on this service so the image can be retried
+          startEdit(data.service);
+          await load();
+          setFormError(`Service saved, but the image upload failed: ${err.message}`);
+          return;
+        }
+      }
+      closeModal();
       await load();
     } catch (err) {
-      setError(err.message);
+      setFormError(err.message);
     } finally {
       setSaving(false);
     }
@@ -86,53 +170,101 @@ export default function AdminServices() {
 
   return (
     <>
-      <h1>Services</h1>
+      <div className="page-header">
+        <h1>Services</h1>
+        <button type="button" className="btn btn-primary" onClick={openAdd}>
+          + Add service
+        </button>
+      </div>
       {error && <div className="alert alert-error">{error}</div>}
 
-      <form className="card form" onSubmit={handleSubmit}>
-        <h3>{editingId ? 'Edit service' : 'Add a service'}</h3>
-        <div className="form-row">
+      {/* onCancel fires on Esc; route it through closeModal so React state stays in sync */}
+      <dialog
+        ref={dialogRef}
+        className="modal"
+        aria-labelledby="service-modal-title"
+        onCancel={(e) => {
+          e.preventDefault();
+          if (!saving) closeModal();
+        }}
+      >
+        <form className="form" onSubmit={handleSubmit}>
+          <div className="modal-header">
+            <h3 id="service-modal-title">{editingId ? 'Edit service' : 'Add a service'}</h3>
+            <button type="button" className="modal-close" aria-label="Close" onClick={closeModal} disabled={saving}>
+              ×
+            </button>
+          </div>
+          {formError && <div className="alert alert-error">{formError}</div>}
+          <div className="form-row">
+            <label>
+              Name
+              <input value={form.name} onChange={update('name')} required minLength={2} />
+            </label>
+            <label>
+              Duration (minutes)
+              <input
+                type="number"
+                min={5}
+                max={480}
+                step={5}
+                value={form.durationMinutes}
+                onChange={update('durationMinutes')}
+                required
+              />
+            </label>
+            <label>
+              Price ({salon.currency})
+              <input type="number" min={0} step="0.01" value={form.price} onChange={update('price')} required />
+            </label>
+          </div>
           <label>
-            Name
-            <input value={form.name} onChange={update('name')} required minLength={2} />
+            Description
+            <textarea rows={2} value={form.description} onChange={update('description')} />
           </label>
-          <label>
-            Duration (minutes)
-            <input
-              type="number"
-              min={5}
-              max={480}
-              step={5}
-              value={form.durationMinutes}
-              onChange={update('durationMinutes')}
-              required
-            />
-          </label>
-          <label>
-            Price ({salon.currency})
-            <input type="number" min={0} step="0.01" value={form.price} onChange={update('price')} required />
-          </label>
-        </div>
-        <label>
-          Description
-          <textarea rows={2} value={form.description} onChange={update('description')} />
-        </label>
-        <div className="actions">
-          <button type="submit" className="btn btn-primary" disabled={saving}>
-            {saving ? 'Saving…' : editingId ? 'Save changes' : 'Add service'}
-          </button>
-          {editingId && (
-            <button type="button" className="btn btn-ghost" onClick={resetForm}>
+          <div className="image-field">
+            {(imagePreview || currentImage) && (
+              <img className="image-field-preview" src={imagePreview || assetUrl(currentImage)} alt="Service" />
+            )}
+            <div className="form">
+              <label>
+                Photo <span className="muted">(JPG, PNG or WebP, up to {MAX_IMAGE_MB} MB)</span>
+                <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" onChange={chooseImage} />
+              </label>
+              <div className="actions">
+                {imageFile && (
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={clearChosenImage}>
+                    Don't use this photo
+                  </button>
+                )}
+                {!imageFile && currentImage && (
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={removeCurrentImage}>
+                    Remove current photo
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="actions">
+            <button type="submit" className="btn btn-primary" disabled={saving}>
+              {saving ? 'Saving…' : editingId ? 'Save changes' : 'Add service'}
+            </button>
+            <button type="button" className="btn btn-ghost" onClick={closeModal} disabled={saving}>
               Cancel
             </button>
-          )}
-        </div>
-      </form>
+          </div>
+        </form>
+      </dialog>
 
       <div className="list">
         {services.map((s) => (
           <div key={s.id} className={`card list-item ${s.is_active ? '' : 'list-item-muted'}`}>
-            <div>
+            {s.image_path ? (
+              <img className="service-thumb" src={assetUrl(s.image_path)} alt="" />
+            ) : (
+              <div className="service-thumb service-thumb-empty">No photo</div>
+            )}
+            <div className="list-item-body">
               <strong>{s.name}</strong> {!s.is_active && <span className="badge badge-cancelled">hidden</span>}
               <div className="muted">
                 {formatDuration(s.duration_minutes)} · {formatPrice(s.price_cents, salon.currency)}

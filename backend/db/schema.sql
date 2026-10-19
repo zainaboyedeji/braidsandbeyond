@@ -46,6 +46,18 @@ CREATE TABLE IF NOT EXISTS services (
   updated_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
+-- Relative URL of the uploaded photo, e.g. /uploads/services/abc.jpg
+ALTER TABLE services ADD COLUMN IF NOT EXISTS image_path TEXT;
+
+-- ---------- BUSINESS HOURS (one row per weekday, 0 = Sunday) ----------
+CREATE TABLE IF NOT EXISTS business_hours (
+  weekday     SMALLINT PRIMARY KEY CHECK (weekday BETWEEN 0 AND 6),
+  is_open     BOOLEAN  NOT NULL DEFAULT TRUE,
+  open_time   TIME     NOT NULL DEFAULT '09:00',
+  close_time  TIME     NOT NULL DEFAULT '18:00',
+  CONSTRAINT business_hours_valid_range CHECK (close_time > open_time)
+);
+
 -- ---------- APPOINTMENTS ----------
 CREATE TABLE IF NOT EXISTS appointments (
   id          SERIAL PRIMARY KEY,
