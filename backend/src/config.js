@@ -13,6 +13,10 @@ const REQUIRED = [
 ];
 
 const missing = REQUIRED.filter((key) => !process.env[key]);
+if (process.env.CLOUDINARY_URL && !/^cloudinary:\/\/\w+:[\w-]+@[\w-]+$/.test(process.env.CLOUDINARY_URL)) {
+  console.error('CLOUDINARY_URL must look like cloudinary://<api_key>:<api_secret>@<cloud_name>');
+  process.exit(1);
+}
 if (missing.length > 0) {
   console.error(`Missing required env vars in backend/.env: ${missing.join(', ')}`);
   process.exit(1);
@@ -48,6 +52,12 @@ const config = {
   nodeEnv: process.env.NODE_ENV || 'development',
   clientOrigin: process.env.CLIENT_ORIGIN || 'http://localhost:5173',
   uploadsDir: path.resolve(__dirname, '..', 'uploads'),
+
+  // Set CLOUDINARY_URL (cloudinary://<api_key>:<api_secret>@<cloud_name>) to store photos on Cloudinary
+  cloudinary: {
+    enabled: Boolean(process.env.CLOUDINARY_URL),
+    folder: process.env.CLOUDINARY_FOLDER || 'braids-and-beyond/services',
+  },
 
   db: {
     connectionString: process.env.DATABASE_URL,

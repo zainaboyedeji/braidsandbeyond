@@ -1,10 +1,7 @@
-const crypto = require('crypto');
-const fs = require('fs');
-const path = require('path');
 const express = require('express');
 const multer = require('multer');
-const config = require('../config');
 const db = require('../db');
+const { saveImage, removeImage } = require('../services/imageStore');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const { HttpError, asyncHandler, parseId } = require('../utils/http');
 
@@ -17,21 +14,15 @@ const SERVICE_FIELDS_S = SERVICE_FIELDS.split(', ')
   .map((f) => `s.${f}`)
   .join(', ');
 
-const IMAGE_DIR = path.join(config.uploadsDir, 'services');
-const IMAGE_TYPES = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp' };
+const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_IMAGE_MB = 5;
 
-fs.mkdirSync(IMAGE_DIR, { recursive: true });
-
+// Kept in memory (max 5 MB) and handed to imageStore, which puts it on Cloudinary or local disk
 const upload = multer({
-  storage: multer.diskStorage({
-    destination: IMAGE_DIR,
-    // Random name: never trust the client's filename
-    filename: (req, file, cb) => cb(null, crypto.randomBytes(16).toString('hex') + IMAGE_TYPES[file.mimetype]),
-  }),
+  storage: multer.memoryStorage(),
   limits: { fileSize: MAX_IMAGE_MB * 1024 * 1024, files: 1 },
   fileFilter: (req, file, cb) => {
-    if (IMAGE_TYPES[file.mimetype]) cb(null, true);
+    if (IMAGE_TYPES.includes(file.mimetype)) cb(null, true);
     else cb(new HttpError(400, 'Image must be a JPG, PNG or WebP file'));
   },
 });
@@ -46,12 +37,6 @@ function uploadImage(req, res, next) {
     }
     return next(err);
   });
-}
-
-function removeImageFile(imagePath) {
-  if (!imagePath) return;
-  const file = path.join(IMAGE_DIR, path.basename(imagePath));
-  fs.promises.unlink(file).catch(() => {});
 }
 
 function validateService(body, { partial = false } = {}) {
@@ -168,7 +153,18 @@ router.post(
   asyncHandler(async (req, res) => {
     if (!req.file) throw new HttpError(400, 'Choose an image to upload');
     const id = parseId(req.params.id);
-    const newPath = `/uploads/services/${req.file.filename}`;
+
+    // Check first so a bad id doesn't leave an orphaned upload on Cloudinary
+    const exists = await db.query('SELECT 1 FROM services WHERE id = $1', [id]);
+    if (!exists.rows[0]) throw new HttpError(404, 'Service not found');
+
+    let newPath;
+    try {
+      newPath = await saveImage(req.file);
+    } catch (err) {
+      console.error('Image upload failed:', err.message);
+      throw new HttpError(502, 'Could not store the image. Please try again.');
+    }
 
     const { rows } = await db
       .query(
@@ -179,16 +175,16 @@ router.post(
         [newPath, id]
       )
       .catch((err) => {
-        removeImageFile(newPath);
+        removeImage(newPath);
         throw err;
       });
     if (!rows[0]) {
-      removeImageFile(newPath);
+      removeImage(newPath);
       throw new HttpError(404, 'Service not found');
     }
 
     const { old_image_path: oldPath, ...service } = rows[0];
-    removeImageFile(oldPath);
+    removeImage(oldPath);
     res.json({ service });
   })
 );
@@ -210,7 +206,7 @@ router.delete(
     if (!rows[0]) throw new HttpError(404, 'Service not found');
 
     const { old_image_path: oldPath, ...service } = rows[0];
-    removeImageFile(oldPath);
+    removeImage(oldPath);
     res.json({ service });
   })
 );

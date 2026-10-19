@@ -1,3 +1,5 @@
+const fs = require('fs');
+const path = require('path');
 const express = require('express');
 const cors = require('cors');
 const config = require('./config');
@@ -42,6 +44,17 @@ app.use('/api/auth', authRoutes);
 app.use('/api/services', serviceRoutes);
 app.use('/api/appointments', appointmentRoutes);
 app.use('/api/admin', adminRoutes);
+
+// Serve the built React app (frontend/dist) when it exists, so one service hosts site + API.
+// Any non-API GET falls back to index.html so React Router can handle deep links like /admin/hours.
+const webDist = path.resolve(__dirname, '..', '..', 'frontend', 'dist');
+if (fs.existsSync(path.join(webDist, 'index.html'))) {
+  app.use(express.static(webDist, { index: false, maxAge: '1y', immutable: true }));
+  app.get(/^\/(?!api\/|uploads\/).*/, (req, res) => {
+    res.set('Cache-Control', 'no-cache');
+    res.sendFile(path.join(webDist, 'index.html'));
+  });
+}
 
 app.use(notFound);
 app.use(errorHandler);

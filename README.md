@@ -63,11 +63,22 @@ After commit, admin + client emails go out in parallel via `Promise.all`. An ema
 | GET / PUT | `/api/admin/business-hours` `{ hours: [{ weekday, isOpen, openTime, closeTime }] }` | admin |
 | POST / DELETE | `/api/services/:id/image` (multipart field `image`) | admin |
 
-## Production
+## Production (Render + Neon + Cloudinary + Brevo)
+
+One Render web service builds the React app and serves it from Express alongside the API (`render.yaml`).
+
+| Piece | Where | Env var |
+| --- | --- | --- |
+| Database | Neon (free Postgres) | `DATABASE_URL`, `DATABASE_SSL=true` |
+| Service photos | Cloudinary | `CLOUDINARY_URL` (without it, photos go to `backend/uploads/`, dev only) |
+| Email | Brevo SMTP on port 2525 | `SMTP_*`, `EMAIL_FROM`, `ADMIN_EMAIL` |
+
+Deploy: push to GitHub → Render → **New → Blueprint** → pick the repo → fill in the secret env vars.
+The start command runs `npm run db:init` first; it's idempotent and never deletes data.
+
+Run a one-off command against production from your machine (secrets kept in the git-ignored `backend/.env.production`):
 
 ```bash
-npm run build           # outputs frontend/dist
-npm start               # runs the API
+cd backend
+DOTENV_CONFIG_PATH=.env.production node -r dotenv/config scripts/createAdmin.js "Name" email@example.com "Password123"
 ```
-
-Serve `frontend/dist` from any static host. If the API lives on another domain, set `VITE_API_URL` at build time and `CLIENT_ORIGIN` in `backend/.env`.

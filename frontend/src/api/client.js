@@ -25,9 +25,10 @@ export class ApiError extends Error {
   }
 }
 
-// Turns a stored path like /uploads/services/x.jpg into a URL that works when the API is on another domain
+// Cloudinary photos are already full URLs; local /uploads/... paths need the API's base URL
 export function assetUrl(path) {
-  return path ? `${BASE_URL}${path}` : null;
+  if (!path) return null;
+  return /^https?:\/\//.test(path) ? path : `${BASE_URL}${path}`;
 }
 
 async function request(method, path, body) {
