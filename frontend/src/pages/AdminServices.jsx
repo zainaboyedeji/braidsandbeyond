@@ -23,6 +23,7 @@ export default function AdminServices() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [editingId, setEditingId] = useState(null);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [saving, setSaving] = useState(false);
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
@@ -267,8 +268,29 @@ export default function AdminServices() {
     }
   }
 
+  async function deleteService(service) {
+    const ok = window.confirm(
+      `Delete "${service.name}"? It will be removed from the website and this list. This can't be undone.`
+    );
+    if (!ok) return;
+    setError('');
+    setNotice('');
+    try {
+      const data = await api.del(`/services/${service.id}`);
+      setNotice(
+        data.deleted === 'archived'
+          ? `"${service.name}" was deleted. Past bookings for it still show in your records.`
+          : `"${service.name}" was deleted.`
+      );
+      await load();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   async function toggleActive(service) {
     setError('');
+    setNotice('');
     try {
       await api.patch(`/services/${service.id}`, { isActive: !service.is_active });
       await load();
@@ -286,6 +308,7 @@ export default function AdminServices() {
         </button>
       </div>
       {error && <div className="alert alert-error">{error}</div>}
+      {notice && <div className="alert alert-success">{notice}</div>}
 
       {/* onCancel fires on Esc; route it through closeModal so React state stays in sync */}
       <dialog
@@ -507,6 +530,9 @@ export default function AdminServices() {
               </button>
               <button type="button" className="btn btn-ghost btn-sm" onClick={() => toggleActive(s)}>
                 {s.is_active ? 'Hide' : 'Show'}
+              </button>
+              <button type="button" className="btn btn-danger btn-sm" onClick={() => deleteService(s)}>
+                Delete
               </button>
             </div>
           </div>

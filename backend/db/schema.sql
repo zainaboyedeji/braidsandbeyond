@@ -49,6 +49,12 @@ CREATE TABLE IF NOT EXISTS services (
 -- Relative URL of the uploaded photo, e.g. /uploads/services/abc.jpg
 ALTER TABLE services ADD COLUMN IF NOT EXISTS image_path TEXT;
 
+-- Deleted services that have past bookings are archived (deleted_at set) rather than removed, so those
+-- bookings keep their service; they're hidden everywhere else. Names only have to be unique among live services.
+ALTER TABLE services ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+ALTER TABLE services DROP CONSTRAINT IF EXISTS services_name_key;
+CREATE UNIQUE INDEX IF NOT EXISTS services_name_live_uniq ON services (name) WHERE deleted_at IS NULL;
+
 -- Gallery: extra photos of a service, shown after its cover photo (services.image_path)
 CREATE TABLE IF NOT EXISTS service_photos (
   id          SERIAL PRIMARY KEY,

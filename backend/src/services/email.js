@@ -409,6 +409,59 @@ function buildCustomerCancelledAdminEmail(booking) {
   };
 }
 
+// What happens to the client's deposit after they cancel, in plain words (empty when no deposit was paid)
+function cancelledRefundMessage(booking) {
+  const refund = booking.refund_cents ? formatPrice(booking.refund_cents) : null;
+  switch (booking.deposit_status) {
+    case 'refunded':
+    case 'partially_refunded':
+      return (
+        `${refund} of your deposit is being refunded to your card or account. ` +
+        'It can take a few working days to arrive.'
+      );
+    case 'refund_due':
+      return (
+        `We'll send ${refund} of your deposit back to you by bank transfer. ` +
+        "Please reply to this email with the account you'd like it paid into."
+      );
+    case 'refund_failed':
+      return `We'll refund ${refund} of your deposit to you shortly.`;
+    case 'forfeited':
+      return (
+        `As you cancelled less than ${config.payments.freeCancellationHours} hours before your appointment, ` +
+        "your deposit isn't refunded."
+      );
+    default:
+      return '';
+  }
+}
+
+function buildCustomerCancelledClientEmail(booking) {
+  const refundMessage = cancelledRefundMessage(booking);
+  return {
+    from: config.email.from,
+    to: booking.client_email,
+    replyTo: config.salon.email || config.email.adminEmail,
+    subject: `Booking cancelled: ${booking.service_name} on ${formatDateTime(booking.start_time)}`,
+    html: layout(
+      'Your appointment is cancelled',
+      `<p style="margin:0 0 16px;">Hi ${escapeHtml(booking.client_name)}, as you asked, we've cancelled this appointment.</p>
+       ${refundMessage ? `<p style="margin:0 0 16px;"><strong>${escapeHtml(refundMessage)}</strong></p>` : ''}
+       ${detailsTable(booking)}
+       ${button(`${config.publicUrl}/book?serviceId=${booking.service_id}`, 'Book another time')}`
+    ),
+    text: [
+      `Hi ${booking.client_name}, as you asked, we've cancelled this appointment.`,
+      refundMessage,
+      `Booking #${booking.id}`,
+      `Service: ${booking.service_name}`,
+      `When: ${formatDateTime(booking.start_time)}`,
+      depositText(booking),
+      `Book another time: ${config.publicUrl}/book?serviceId=${booking.service_id}`,
+    ].join('\n'),
+  };
+}
+
 /**
  * Sends the admin notification and client receipt in parallel.
  * `booking` must come from the JOINed booking query (client + service fields).
@@ -434,8 +487,12 @@ async function sendRescheduleEmails(booking, previousStart) {
   ]);
 }
 
+// The client cancelled: tell the salon, and confirm it to the client (with what happens to their deposit)
 async function sendCustomerCancelledEmail(booking) {
-  await transporter.sendMail(buildCustomerCancelledAdminEmail(booking));
+  await Promise.all([
+    transporter.sendMail(buildCustomerCancelledAdminEmail(booking)),
+    transporter.sendMail(buildCustomerCancelledClientEmail(booking)),
+  ]);
 }
 
 async function sendPasswordResetEmail(user, resetUrl) {

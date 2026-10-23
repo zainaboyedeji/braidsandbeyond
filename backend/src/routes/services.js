@@ -117,7 +117,8 @@ router.get(
   requireAdmin,
   asyncHandler(async (req, res) => {
     const { rows } = await db.query(
-      `SELECT ${SERVICE_FIELDS}, ${PHOTOS_SQL}, ${VARIANTS_SQL} FROM services ORDER BY is_active DESC, name`
+      `SELECT ${SERVICE_FIELDS}, ${PHOTOS_SQL}, ${VARIANTS_SQL}
+         FROM services WHERE deleted_at IS NULL ORDER BY is_active DESC, name`
     );
     res.json({ services: rows });
   })
@@ -161,19 +162,48 @@ router.patch(
   })
 );
 
-// DELETE /api/services/:id  (admin) - soft delete so past appointments keep their service
+// DELETE /api/services/:id  (admin)
+// Refused while the service has upcoming bookings. Otherwise a service that was never booked is removed
+// (with its photos); one with past bookings is archived so those bookings keep their service name and price.
 router.delete(
   '/:id',
   requireAuth,
   requireAdmin,
   asyncHandler(async (req, res) => {
     const id = parseId(req.params.id);
-    const { rows } = await db.query(
-      `UPDATE services SET is_active = FALSE WHERE id = $1 RETURNING ${SERVICE_FIELDS}`,
-      [id]
-    );
-    if (!rows[0]) throw new HttpError(404, 'Service not found');
-    res.json({ service: rows[0] });
+    const { result, images } = await db.withTransaction(async (client) => {
+      const svc = await client.query(
+        'SELECT image_path FROM services WHERE id = $1 AND deleted_at IS NULL FOR UPDATE',
+        [id]
+      );
+      if (!svc.rows[0]) throw new HttpError(404, 'Service not found');
+
+      const counts = await client.query(
+        `SELECT COUNT(*)::int AS total,
+                COUNT(*) FILTER (WHERE status IN ('pending', 'confirmed') AND end_time > NOW())::int AS upcoming
+           FROM appointments WHERE service_id = $1`,
+        [id]
+      );
+      const { total, upcoming } = counts.rows[0];
+      if (upcoming > 0) {
+        throw new HttpError(
+          409,
+          `This service has ${upcoming} upcoming booking${upcoming === 1 ? '' : 's'}. ` +
+            'Cancel or complete them first, or use Hide to stop new bookings.'
+        );
+      }
+
+      if (total > 0) {
+        await client.query('UPDATE services SET deleted_at = NOW(), is_active = FALSE WHERE id = $1', [id]);
+        return { result: 'archived', images: [] };
+      }
+      const photos = await client.query('SELECT image_path FROM service_photos WHERE service_id = $1', [id]);
+      await client.query('DELETE FROM services WHERE id = $1', [id]);
+      return { result: 'removed', images: [svc.rows[0].image_path, ...photos.rows.map((p) => p.image_path)] };
+    });
+
+    images.forEach(removeImage);
+    res.json({ deleted: result });
   })
 );
 
