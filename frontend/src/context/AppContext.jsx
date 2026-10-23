@@ -5,6 +5,8 @@ const AppContext = createContext(null);
 
 const DEFAULT_SALON = {
   name: 'Braids and Beyond',
+  phone: null,
+  whatsappNumber: null,
   currency: 'USD',
   timezone: 'UTC',
   slotIntervalMinutes: 15,

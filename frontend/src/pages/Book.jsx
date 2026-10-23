@@ -15,6 +15,8 @@ import {
   formatPickup,
   formatPrice,
   formatTime,
+  serviceDuration,
+  servicePrice,
   todayInZone,
   weekdayOf,
 } from '../utils/format';
@@ -31,6 +33,7 @@ export default function Book() {
   const today = todayInZone(salon.timezone);
   const [services, setServices] = useState([]);
   const [serviceId, setServiceId] = useState(searchParams.get('serviceId') || '');
+  const [variantId, setVariantId] = useState(searchParams.get('variantId') || '');
   const [date, setDate] = useState(() => {
     const fromUrl = searchParams.get('date');
     return fromUrl && fromUrl >= today ? fromUrl : today;
@@ -68,14 +71,22 @@ export default function Book() {
       .catch((err) => setError(err.message));
   }, []);
 
+  const selectedService = services.find((s) => String(s.id) === String(serviceId));
+  const variants = selectedService?.variants || [];
+  const selectedVariant = variants.find((v) => String(v.id) === String(variantId));
+  // What's being booked: the chosen option, or the service itself when it has none
+  const option = variants.length > 0 ? selectedVariant : selectedService;
+
   const loadSlots = useCallback(async () => {
-    if (!serviceId || !date) {
+    // Wait for the services list, and for an option to be picked on services that have them
+    if (!option || !date) {
       setSlots([]);
       return;
     }
     setLoadingSlots(true);
     try {
-      const data = await api.get(`/appointments/availability?serviceId=${serviceId}&date=${date}`);
+      const variantParam = selectedVariant ? `&variantId=${selectedVariant.id}` : '';
+      const data = await api.get(`/appointments/availability?serviceId=${serviceId}${variantParam}&date=${date}`);
       setSlots(data.slots);
     } catch (err) {
       setError(err.message);
@@ -83,21 +94,20 @@ export default function Book() {
     } finally {
       setLoadingSlots(false);
     }
-  }, [serviceId, date]);
+  }, [serviceId, date, option, selectedVariant]);
 
   useEffect(() => {
     setSelectedSlot(null);
     loadSlots();
   }, [loadSlots]);
 
-  const selectedService = services.find((s) => String(s.id) === String(serviceId));
   const isClosedDay = salon.hours.some((h) => h.weekday === weekdayOf(date) && !h.is_open);
 
   const pickupVehicles = salon.pickupVehicles || [];
   const pickupVehicle = pickupVehicles.find((v) => v.id === pickup.vehicleId);
   const pickupPrice = (vehicle, hours) => (hours === 6 ? vehicle.price_6h_cents : vehicle.price_12h_cents);
   const pickupPriceCents = pickupVehicle ? pickupPrice(pickupVehicle, pickup.hours) : 0;
-  const totalCents = (selectedService?.price_cents || 0) + pickupPriceCents;
+  const totalCents = (option?.price_cents || 0) + pickupPriceCents;
   const depositCents = depositFor(totalCents, salon.deposits);
 
   async function handleBook(e) {
@@ -107,6 +117,7 @@ export default function Book() {
     try {
       const data = await api.post('/appointments', {
         serviceId: Number(serviceId),
+        variantId: selectedVariant ? selectedVariant.id : undefined,
         startTime: selectedSlot.start_time,
         notes: notes.trim() || undefined,
         contact,
@@ -197,11 +208,17 @@ export default function Book() {
         <div className="form-row">
           <label>
             Service
-            <select value={serviceId} onChange={(e) => setServiceId(e.target.value)}>
+            <select
+              value={serviceId}
+              onChange={(e) => {
+                setServiceId(e.target.value);
+                setVariantId('');
+              }}
+            >
               <option value="">Select a service…</option>
               {services.map((s) => (
                 <option key={s.id} value={s.id}>
-                  {s.name} · {formatDuration(s.duration_minutes)} · {formatPrice(s.price_cents, salon.currency)}
+                  {s.name} · {serviceDuration(s)} · {servicePrice(s, salon.currency)}
                 </option>
               ))}
             </select>
@@ -234,8 +251,7 @@ export default function Book() {
               <strong>{selectedService.name}</strong>
               {selectedService.description && <div className="muted">{selectedService.description}</div>}
               <div className="small">
-                {formatDuration(selectedService.duration_minutes)} ·{' '}
-                {formatPrice(selectedService.price_cents, salon.currency)}
+                {serviceDuration(selectedService)} · {servicePrice(selectedService, salon.currency)}
               </div>
               {selectedService.photos?.length > 0 && (
                 <div className="photo-strip">
@@ -265,7 +281,29 @@ export default function Book() {
           />
         )}
 
-        {serviceId && (
+        {variants.length > 0 && (
+          <fieldset className="contact-fields">
+            <legend>Choose an option</legend>
+            <div className="pickup-options">
+              {variants.map((v) => (
+                <button
+                  type="button"
+                  key={v.id}
+                  className={`slot ${selectedVariant?.id === v.id ? 'slot-selected' : ''}`}
+                  onClick={() => setVariantId(String(v.id))}
+                  aria-pressed={selectedVariant?.id === v.id}
+                >
+                  {v.name}
+                  <div className="small">
+                    {formatDuration(v.duration_minutes)} · {formatPrice(v.price_cents, salon.currency)}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </fieldset>
+        )}
+
+        {option && (
           <>
             <h3>
               Available times <span className="muted">({salon.timezone})</span>
@@ -293,12 +331,15 @@ export default function Book() {
           </>
         )}
 
-        {selectedSlot && selectedService && (
+        {selectedSlot && option && (
           <form className="summary" onSubmit={handleBook}>
             <p>
-              <strong>{selectedService.name}</strong> · {formatTime(selectedSlot.start_time, salon.timezone)} –{' '}
-              {formatTime(selectedSlot.end_time, salon.timezone)} ·{' '}
-              {formatPrice(selectedService.price_cents, salon.currency)}
+              <strong>
+                {selectedService.name}
+                {selectedVariant && ` · ${selectedVariant.name}`}
+              </strong>{' '}
+              · {formatTime(selectedSlot.start_time, salon.timezone)} –{' '}
+              {formatTime(selectedSlot.end_time, salon.timezone)} · {formatPrice(option.price_cents, salon.currency)}
             </p>
             <fieldset className="contact-fields">
               <legend>Your details</legend>
@@ -452,7 +493,14 @@ export default function Book() {
                 </div>
               </fieldset>
             )}
-            {depositCents > 0 && <p className="muted small">{cancellationPolicy(salon.deposits)}</p>}
+            <p className="muted small">
+              {depositCents > 0 && `${cancellationPolicy(salon.deposits)} `}
+              By booking you agree to our{' '}
+              <Link to="/policies" target="_blank">
+                Policies and Terms
+              </Link>
+              .
+            </p>
             <button type="submit" className="btn btn-primary" disabled={submitting}>
               {depositCents > 0 && paymentMethod === 'transfer'
                 ? submitting

@@ -8,6 +8,7 @@ import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import PaymentCallback from './pages/PaymentCallback';
+import Policies from './pages/Policies';
 import Book from './pages/Book';
 import ManageBooking from './pages/ManageBooking';
 import MyAppointments from './pages/MyAppointments';
@@ -37,6 +38,7 @@ export default function App() {
           <Route path="/book" element={<Book />} />
           <Route path="/manage/:token" element={<ManageBooking />} />
           <Route path="/payment/callback" element={<PaymentCallback />} />
+          <Route path="/policies" element={<Policies />} />
           <Route
             path="/my-appointments"
             element={

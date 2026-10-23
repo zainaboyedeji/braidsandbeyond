@@ -31,6 +31,9 @@ export default function Footer() {
             <li>
               <Link to="/my-appointments">My appointments</Link>
             </li>
+            <li>
+              <Link to="/policies">Policies and Terms</Link>
+            </li>
           </ul>
         </div>
         {open.length > 0 && (

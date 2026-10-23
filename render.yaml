@@ -16,6 +16,8 @@ services:
         value: production
       - key: SALON_NAME
         value: Braids and Beyond
+      - key: SALON_PHONE
+        sync: false
       - key: SALON_CURRENCY
         value: NGN
       - key: SALON_TIMEZONE

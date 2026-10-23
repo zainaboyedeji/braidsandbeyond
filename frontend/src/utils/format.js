@@ -130,3 +130,22 @@ export function cancelPrompt(booking, refundCents, currency) {
     `${formatPrice(refundCents, currency)} of your ${deposit} deposit back.`
   );
 }
+
+// Length shown for a service: its own, or the range across its options ("1h–2h 30m")
+export function serviceDuration(service) {
+  const variants = service.variants || [];
+  if (variants.length === 0) return formatDuration(service.duration_minutes);
+  const mins = variants.map((v) => v.duration_minutes);
+  const lo = Math.min(...mins);
+  const hi = Math.max(...mins);
+  return lo === hi ? formatDuration(lo) : `${formatDuration(lo)}–${formatDuration(hi)}`;
+}
+
+// Price shown for a service: its own, or "from" its cheapest option
+export function servicePrice(service, currency) {
+  const variants = service.variants || [];
+  if (variants.length === 0) return formatPrice(service.price_cents, currency);
+  const prices = variants.map((v) => v.price_cents);
+  const lo = Math.min(...prices);
+  return lo === Math.max(...prices) ? formatPrice(lo, currency) : `from ${formatPrice(lo, currency)}`;
+}

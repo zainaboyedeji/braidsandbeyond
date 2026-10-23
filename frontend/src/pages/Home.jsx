@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { api, assetUrl } from '../api/client';
 import PhotoGallery, { servicePhotoPaths } from '../components/PhotoGallery';
 import { useApp } from '../context/AppContext';
-import { WEEKDAYS, formatClock, formatDuration, formatPrice } from '../utils/format';
+import { WEEKDAYS, formatClock, serviceDuration, servicePrice } from '../utils/format';
 
 // Monday first
 const DISPLAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
@@ -76,9 +76,16 @@ export default function Home() {
               )}
               <h3>{service.name}</h3>
               {service.description && <p className="muted">{service.description}</p>}
+              {service.variants?.length > 0 && (
+                <div className="variant-chips">
+                  {service.variants.map((v) => (
+                    <span key={v.id}>{v.name}</span>
+                  ))}
+                </div>
+              )}
               <div className="service-meta">
-                <span>{formatDuration(service.duration_minutes)}</span>
-                <strong>{formatPrice(service.price_cents, salon.currency)}</strong>
+                <span>{serviceDuration(service)}</span>
+                <strong>{servicePrice(service, salon.currency)}</strong>
               </div>
               <Link to={`/book?serviceId=${service.id}`} className="btn btn-primary">
                 Book now

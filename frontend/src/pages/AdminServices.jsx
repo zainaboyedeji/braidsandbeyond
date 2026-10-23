@@ -1,12 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, assetUrl } from '../api/client';
 import { useApp } from '../context/AppContext';
-import { formatDuration, formatPrice } from '../utils/format';
+import { serviceDuration, servicePrice } from '../utils/format';
 
 const EMPTY_FORM = { name: '', description: '', durationMinutes: 30, price: '' };
 const MAX_IMAGE_MB = 5;
 const MAX_GALLERY_PHOTOS = 12;
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+
+let nextVariantKey = 1;
+const newVariantRow = (v = {}) => ({
+  key: nextVariantKey++,
+  id: v.id ?? null,
+  name: v.name ?? '',
+  durationMinutes: v.duration_minutes ?? 60,
+  price: v.price_cents !== undefined ? (v.price_cents / 100).toFixed(2) : '',
+});
 
 export default function AdminServices() {
   const { salon } = useApp();
@@ -19,6 +28,7 @@ export default function AdminServices() {
   const [imagePreview, setImagePreview] = useState(null);
   const [currentImage, setCurrentImage] = useState(null);
   const [photos, setPhotos] = useState([]);
+  const [variantRows, setVariantRows] = useState([]);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [formError, setFormError] = useState('');
@@ -88,6 +98,10 @@ export default function AdminServices() {
     }
   }
 
+  function updateVariant(key, field, value) {
+    setVariantRows((rows) => rows.map((r) => (r.key === key ? { ...r, [field]: value } : r)));
+  }
+
   async function addPhotos(e) {
     const files = [...e.target.files];
     e.target.value = '';
@@ -152,6 +166,7 @@ export default function AdminServices() {
     setEditingId(service.id);
     setCurrentImage(service.image_path);
     setPhotos(service.photos || []);
+    setVariantRows((service.variants || []).map((v) => newVariantRow(v)));
     clearChosenImage();
     setForm({
       name: service.name,
@@ -173,6 +188,7 @@ export default function AdminServices() {
     setForm(EMPTY_FORM);
     setCurrentImage(null);
     setPhotos([]);
+    setVariantRows([]);
     setFormError('');
     clearChosenImage();
   }
@@ -196,12 +212,35 @@ export default function AdminServices() {
       durationMinutes: Number(form.durationMinutes),
       priceCents,
     };
+    const variants = variantRows.map((row) => ({
+      id: row.id ?? undefined,
+      name: row.name,
+      durationMinutes: Number(row.durationMinutes),
+      priceCents: Math.round(Number(row.price) * 100),
+    }));
+    const badVariant = variants.find((v) => !Number.isFinite(v.priceCents) || v.priceCents < 0);
+    if (badVariant) {
+      setFormError(`Enter a valid price for "${badVariant.name || 'each option'}"`);
+      return;
+    }
 
     setSaving(true);
     try {
       const data = editingId
         ? await api.patch(`/services/${editingId}`, payload)
         : await api.post('/services', payload);
+      if (editingId || variants.length > 0) {
+        try {
+          await api.put(`/services/${data.service.id}/variants`, { variants });
+        } catch (err) {
+          // Details were saved; reopen on this service so the options can be fixed
+          await load();
+          startEdit({ ...data.service, photos });
+          setVariantRows(variantRows);
+          setFormError(`Service saved, but the options weren't: ${err.message}`);
+          return;
+        }
+      }
       if (imageFile) {
         const formData = new FormData();
         formData.append('image', imageFile);
@@ -288,6 +327,73 @@ export default function AdminServices() {
             Description
             <textarea rows={2} value={form.description} onChange={update('description')} />
           </label>
+          <fieldset className="gallery-field">
+            <legend>
+              Options <span className="muted">(e.g. Small, Medium, Large)</span>
+            </legend>
+            {variantRows.length > 0 && (
+              <div className="variant-rows">
+                <div className="variant-row variant-row-head" aria-hidden="true">
+                  <span>Name</span>
+                  <span>Minutes</span>
+                  <span>Price ({salon.currency})</span>
+                  <span />
+                </div>
+                {variantRows.map((row) => (
+                  <div key={row.key} className="variant-row">
+                    <input
+                      value={row.name}
+                      onChange={(e) => updateVariant(row.key, 'name', e.target.value)}
+                      placeholder="e.g. Medium"
+                      aria-label="Option name"
+                      maxLength={60}
+                      required
+                    />
+                    <input
+                      type="number"
+                      min={5}
+                      max={480}
+                      step={5}
+                      value={row.durationMinutes}
+                      onChange={(e) => updateVariant(row.key, 'durationMinutes', e.target.value)}
+                      aria-label="Option duration in minutes"
+                      required
+                    />
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={row.price}
+                      onChange={(e) => updateVariant(row.key, 'price', e.target.value)}
+                      aria-label="Option price"
+                      required
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => setVariantRows((rows) => rows.filter((r) => r.key !== row.key))}
+                      aria-label={`Remove ${row.name || 'option'}`}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <button
+              type="button"
+              className="btn btn-outline btn-sm"
+              onClick={() => setVariantRows((rows) => [...rows, newVariantRow()])}
+            >
+              + Add option
+            </button>
+            <p className="muted small">
+              {variantRows.length > 0
+                ? 'Clients choose one of these when booking, each with its own length and price ' +
+                  '(the duration and price above are then not used).'
+                : 'Leave empty if this service only comes one way.'}
+            </p>
+          </fieldset>
           <div className="image-field">
             {(imagePreview || currentImage) && (
               <img className="image-field-preview" src={imagePreview || assetUrl(currentImage)} alt="Service" />
@@ -383,7 +489,8 @@ export default function AdminServices() {
             <div className="list-item-body">
               <strong>{s.name}</strong> {!s.is_active && <span className="badge badge-cancelled">hidden</span>}
               <div className="muted">
-                {formatDuration(s.duration_minutes)} · {formatPrice(s.price_cents, salon.currency)}
+                {serviceDuration(s)} · {servicePrice(s, salon.currency)}
+                {s.variants?.length > 0 && ` · ${s.variants.length} options`}
               </div>
             </div>
             <div className="actions">
