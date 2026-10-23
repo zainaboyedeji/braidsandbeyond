@@ -49,6 +49,16 @@ CREATE TABLE IF NOT EXISTS services (
 -- Relative URL of the uploaded photo, e.g. /uploads/services/abc.jpg
 ALTER TABLE services ADD COLUMN IF NOT EXISTS image_path TEXT;
 
+-- Gallery: extra photos of a service, shown after its cover photo (services.image_path)
+CREATE TABLE IF NOT EXISTS service_photos (
+  id          SERIAL PRIMARY KEY,
+  service_id  INTEGER     NOT NULL REFERENCES services(id) ON DELETE CASCADE,
+  image_path  TEXT        NOT NULL,
+  position    INTEGER     NOT NULL DEFAULT 0,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS service_photos_service_idx ON service_photos (service_id, position);
+
 -- ---------- BUSINESS HOURS (one row per weekday, 0 = Sunday) ----------
 CREATE TABLE IF NOT EXISTS business_hours (
   weekday     SMALLINT PRIMARY KEY CHECK (weekday BETWEEN 0 AND 6),
