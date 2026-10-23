@@ -664,6 +664,25 @@ textarea:focus {
   color: var(--success);
 }
 
+.alert-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.btn-whatsapp {
+  background: #25d366;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.btn-whatsapp:hover {
+  background: #1ebe5a;
+  color: #fff;
+}
+
 /* ---------- Service photos ---------- */
 .service-image {
   width: calc(100% + 40px);

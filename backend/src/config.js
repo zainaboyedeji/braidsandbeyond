@@ -94,7 +94,7 @@ const config = {
     token: process.env.WHATSAPP_TOKEN,
     phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID,
     apiVersion: process.env.WHATSAPP_API_VERSION || 'v21.0',
-    templateName: process.env.WHATSAPP_TEMPLATE_NAME || 'booking_confirmed',
+    templateName: process.env.WHATSAPP_TEMPLATE_NAME || 'braidsandbeyonds_bookingconfirmed',
     templateLanguage: process.env.WHATSAPP_TEMPLATE_LANGUAGE || 'en',
     // Added to local numbers like 0801 234 5678 (no "+", no leading zeros)
     defaultCountryCode: (process.env.WHATSAPP_DEFAULT_COUNTRY_CODE || '234').replace(/\D/g, ''),

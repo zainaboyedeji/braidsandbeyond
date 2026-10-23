@@ -4,7 +4,7 @@ const config = require('../config');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const bookingService = require('../services/bookingService');
 const { sendStatusEmail } = require('../services/email');
-const { sendConfirmationWhatsApp } = require('../services/whatsapp');
+const { sendConfirmationWhatsApp, confirmationLink } = require('../services/whatsapp');
 const { getBusinessHours, setBusinessHours } = require('../services/businessHours');
 const { getPickupVehicles, setPickupVehicles } = require('../services/pickup');
 const { HttpError, asyncHandler, parseId } = require('../utils/http');
@@ -39,7 +39,7 @@ router.get(
 
     const { rows } = await db.query(
       `SELECT a.id, a.start_time, a.end_time, a.status, a.notes, a.created_at,
-              a.client_id,
+              a.client_id, a.manage_token,
               COALESCE(a.contact_name, u.full_name) AS client_name,
               COALESCE(a.contact_email, u.email)    AS client_email,
               COALESCE(a.contact_phone, u.phone)    AS client_phone,
@@ -54,7 +54,11 @@ router.get(
         ORDER BY a.start_time ASC`,
       params
     );
-    res.json({ appointments: rows });
+    const appointments = rows.map(({ manage_token, ...a }) => ({
+      ...a,
+      whatsapp_link: a.status === 'confirmed' ? confirmationLink({ ...a, manage_token }) : null,
+    }));
+    res.json({ appointments });
   })
 );
 
@@ -70,20 +74,22 @@ router.patch(
 
     // Let the customer know when the salon confirms or cancels. Committed already, so send failures are non-fatal.
     let emailSent = false;
-    let whatsappSent = false;
+    let whatsapp = { sent: false };
     if (booking.status !== previousStatus) {
-      [emailSent, whatsappSent] = await Promise.all([
+      [emailSent, whatsapp] = await Promise.all([
         sendStatusEmail(booking).catch((err) => {
           console.error(`Booking #${booking.id} status saved but email sending failed:`, err.message);
           return false;
         }),
         sendConfirmationWhatsApp(booking).catch((err) => {
           console.error(`Booking #${booking.id} status saved but WhatsApp sending failed:`, err.message);
-          return false;
+          return { sent: false, reason: err.message };
         }),
       ]);
+      if (!whatsapp.sent && booking.status === 'confirmed') whatsapp.link = confirmationLink(booking);
+      if (whatsapp.reason) console.warn(`Booking #${booking.id}: no WhatsApp sent, ${whatsapp.reason}`);
     }
-    res.json({ booking, emailSent, whatsappSent });
+    res.json({ booking, emailSent, whatsapp });
   })
 );
 

@@ -74,6 +74,32 @@ One Render web service builds the React app and serves it from Express alongside
 | Email | Brevo SMTP on port 2525 | `SMTP_*`, `EMAIL_FROM`, `ADMIN_EMAIL` |
 | WhatsApp (optional) | Meta WhatsApp Cloud API | `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_TEMPLATE_NAME` |
 
+### WhatsApp booking confirmations
+
+When an admin sets a booking to **confirmed**, the client gets their booking details on WhatsApp
+(name, service + pickup, date & time, booking #, manage link). The dashboard shows whether it was sent and, if not, why.
+
+1. In [Meta for Developers](https://developers.facebook.com/apps) create a **Business** app and add the **WhatsApp** product.
+2. Under WhatsApp → API Setup, add and verify the salon's business number. Copy its **Phone number ID** → `WHATSAPP_PHONE_NUMBER_ID`.
+3. In Business Settings → System users, create a system user, give it the app with `whatsapp_business_messaging`
+   and `whatsapp_business_management`, and generate a token that never expires → `WHATSAPP_TOKEN`.
+   (The 24-hour token on the API Setup page works for testing only.)
+4. In WhatsApp Manager → Message templates, create a **Utility** template named `braidsandbeyonds_bookingconfirmed`, language
+   English (`en`; if you pick English (US), set `WHATSAPP_TEMPLATE_LANGUAGE=en_US`), with a body like:
+
+   ```
+   Hi {{1}}, your booking at Braids & Beyond is confirmed!
+   Service: {{2}}
+   When: {{3}}
+   Booking #{{4}}
+   View or change your booking: {{5}}
+   ```
+
+5. Once Meta approves it, set the env vars and run `cd backend && npm run whatsapp:test -- <your number>`.
+
+While the app is unpublished or using Meta's test number, WhatsApp only delivers to numbers you've added to
+the recipient list on the API Setup page. A payment method on the WhatsApp Business account is needed for real clients.
+
 Deploy: push to GitHub → Render → **New → Blueprint** → pick the repo → fill in the secret env vars.
 The start command runs `npm run db:init` first; it's idempotent and never deletes data.
 

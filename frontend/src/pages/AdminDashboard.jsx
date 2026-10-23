@@ -12,6 +12,7 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState(null);
   const [busyId, setBusyId] = useState(null);
 
   const load = useCallback(async () => {
@@ -35,8 +36,20 @@ export default function AdminDashboard() {
   async function changeStatus(id, status) {
     setBusyId(id);
     setError('');
+    setNotice(null);
     try {
-      await api.patch(`/admin/appointments/${id}/status`, { status });
+      const { booking, whatsapp } = await api.patch(`/admin/appointments/${id}/status`, { status });
+      if (whatsapp?.sent) {
+        setNotice({ type: 'success', text: `Booking #${booking.id} details sent to ${booking.client_name} on WhatsApp.` });
+      } else if (whatsapp?.link) {
+        setNotice({
+          type: 'warning',
+          text: `Booking #${booking.id} confirmed. Send ${booking.client_name} the details on WhatsApp:`,
+          link: whatsapp.link,
+        });
+      } else if (whatsapp?.reason) {
+        setNotice({ type: 'warning', text: `Booking #${booking.id} confirmed, but no WhatsApp was sent: ${whatsapp.reason}` });
+      }
       await load();
     } catch (err) {
       setError(err.message);
@@ -88,6 +101,16 @@ export default function AdminDashboard() {
       </div>
 
       {error && <div className="alert alert-error">{error}</div>}
+      {notice && (
+        <div className={`alert alert-${notice.type} alert-row`}>
+          <span>{notice.text}</span>
+          {notice.link && (
+            <a className="btn btn-sm btn-whatsapp" href={notice.link} target="_blank" rel="noreferrer">
+              Send on WhatsApp
+            </a>
+          )}
+        </div>
+      )}
 
       {loading ? (
         <p className="muted">Loading…</p>
@@ -147,6 +170,17 @@ export default function AdminDashboard() {
                           </option>
                         ))}
                       </select>
+                      {a.whatsapp_link && (
+                        <a
+                          className="btn btn-sm btn-whatsapp"
+                          href={a.whatsapp_link}
+                          target="_blank"
+                          rel="noreferrer"
+                          title={`Send booking details to ${a.client_name} on WhatsApp`}
+                        >
+                          WhatsApp
+                        </a>
+                      )}
                     </div>
                   </td>
                 </tr>

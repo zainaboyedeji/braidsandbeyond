@@ -56,3 +56,7 @@ services:
         sync: false
       - key: WHATSAPP_DEFAULT_COUNTRY_CODE
         value: "234"
+      - key: WHATSAPP_TEMPLATE_NAME
+        value: braidsandbeyonds_bookingconfirmed
+      - key: WHATSAPP_TEMPLATE_LANGUAGE
+        value: en
