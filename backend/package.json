@@ -8,6 +8,7 @@
     "start": "node src/server.js",
     "db:init": "node scripts/initDb.js",
     "db:admin": "node scripts/createAdmin.js",
+    "db:reset": "node scripts/resetData.js",
     "whatsapp:test": "node scripts/testWhatsApp.js"
   },
   "dependencies": {

@@ -342,6 +342,28 @@ async function sendCustomerCancelledEmail(booking) {
   await transporter.sendMail(buildCustomerCancelledAdminEmail(booking));
 }
 
+async function sendPasswordResetEmail(user, resetUrl) {
+  await transporter.sendMail({
+    from: config.email.from,
+    to: user.email,
+    subject: `Reset your ${config.salon.name} password`,
+    html: layout(
+      'Reset your password',
+      `<p style="margin:0 0 16px;">Hi ${escapeHtml(user.full_name)}, we received a request to reset your password.
+         Click the button below to choose a new one. The link works once and expires in 1 hour.</p>
+       ${button(resetUrl, 'Choose a new password')}
+       <p style="margin:16px 0 0;font-size:13px;color:#7a716c;">
+         Didn't ask for this? You can ignore this email; your password stays the same.
+       </p>`
+    ),
+    text: [
+      `Hi ${user.full_name}, we received a request to reset your password.`,
+      `Choose a new one here (works once, expires in 1 hour): ${resetUrl}`,
+      "Didn't ask for this? Ignore this email; your password stays the same.",
+    ].join('\n'),
+  });
+}
+
 async function verifyEmailTransport() {
   try {
     await transporter.verify();
@@ -356,5 +378,6 @@ module.exports = {
   sendStatusEmail,
   sendRescheduleEmails,
   sendCustomerCancelledEmail,
+  sendPasswordResetEmail,
   verifyEmailTransport,
 };

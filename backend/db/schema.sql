@@ -168,4 +168,15 @@ CREATE TRIGGER appointments_set_updated_at
   BEFORE UPDATE ON appointments
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
+-- ---------- PASSWORD RESETS ("forgot password" links, single use, 1 hour) ----------
+-- Only a SHA-256 of the emailed token is stored, so a DB leak can't be used to reset passwords.
+CREATE TABLE IF NOT EXISTS password_resets (
+  id          SERIAL PRIMARY KEY,
+  user_id     INTEGER     NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_hash  CHAR(64)    NOT NULL UNIQUE,
+  expires_at  TIMESTAMPTZ NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS password_resets_user_idx ON password_resets (user_id);
+
 COMMIT;
