@@ -39,6 +39,22 @@ async function requireAuth(req, res, next) {
   }
 }
 
+// Like requireAuth, but lets the request through as a guest (req.user = null) when there is no
+// valid token. Used where signing in is optional, e.g. booking.
+function optionalAuth(req, res, next) {
+  if (!req.headers.authorization) {
+    req.user = null;
+    return next();
+  }
+  return requireAuth(req, res, (err) => {
+    if (err && err.status === 401) {
+      req.user = null;
+      return next();
+    }
+    return next(err);
+  });
+}
+
 function requireAdmin(req, res, next) {
   if (!req.user || req.user.role !== 'admin') {
     return next(new HttpError(403, 'Admin access required'));
@@ -46,4 +62,4 @@ function requireAdmin(req, res, next) {
   return next();
 }
 
-module.exports = { signToken, requireAuth, requireAdmin };
+module.exports = { signToken, requireAuth, optionalAuth, requireAdmin };

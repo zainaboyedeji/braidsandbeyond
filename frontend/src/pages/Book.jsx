@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { api, assetUrl } from '../api/client';
 import { useApp } from '../context/AppContext';
 import {
@@ -16,7 +16,6 @@ const BOOKING_WINDOW_DAYS = 60;
 
 export default function Book() {
   const { user, salon } = useApp();
-  const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
 
@@ -79,11 +78,6 @@ export default function Book() {
 
   async function handleBook(e) {
     e.preventDefault();
-    if (!user) {
-      // Customers must have an account; bring them back to this slot afterwards
-      navigate('/register', { state: { from: location.pathname + location.search } });
-      return;
-    }
     setError('');
     setSubmitting(true);
     try {
@@ -111,22 +105,33 @@ export default function Book() {
     return (
       <div className="card confirmation">
         <div className="confirmation-icon">✓</div>
-        <h1>You're booked!</h1>
+        <h1>Booking request sent!</h1>
         <p>
           <strong>{b.service_name}</strong> on <strong>{formatDateTime(b.start_time, salon.timezone)}</strong>
         </p>
+        <p>
+          <span className="badge badge-pending">pending</span> We'll email you as soon as the salon confirms it.
+        </p>
         <p className="muted">Booking #{b.id}</p>
         {confirmation.emailsSent ? (
-          <p className="muted">A confirmation email has been sent to {b.client_email}.</p>
+          <p className="muted">
+            We've sent the details and a link to manage your booking to {b.client_email}.
+          </p>
         ) : (
           <div className="alert alert-warning">
-            Your booking is saved, but we couldn't send the confirmation email. It's still visible in My Appointments.
+            Your booking is saved, but we couldn't send the email. Save the "Manage booking" link below to reschedule or
+            cancel later.
           </div>
         )}
         <div className="actions">
-          <Link to="/my-appointments" className="btn btn-primary">
-            View my appointments
+          <Link to={`/manage/${b.manage_token}`} className="btn btn-primary">
+            Manage booking
           </Link>
+          {user && (
+            <Link to="/my-appointments" className="btn btn-outline">
+              My appointments
+            </Link>
+          )}
           <button
             type="button"
             className="btn btn-outline"
@@ -224,55 +229,54 @@ export default function Book() {
               {formatTime(selectedSlot.end_time, salon.timezone)} ·{' '}
               {formatPrice(selectedService.price_cents, salon.currency)}
             </p>
-            {user ? (
-              <fieldset className="contact-fields">
-                <legend>Your details</legend>
-                <div className="form-row">
-                  <label>
-                    Full name
-                    <input
-                      value={contact.fullName}
-                      onChange={updateContact('fullName')}
-                      autoComplete="name"
-                      required
-                      minLength={2}
-                      maxLength={120}
-                    />
-                  </label>
-                  <label>
-                    Email address
-                    <input
-                      type="email"
-                      value={contact.email}
-                      onChange={updateContact('email')}
-                      autoComplete="email"
-                      required
-                    />
-                  </label>
-                  <label>
-                    Phone number
-                    <input
-                      type="tel"
-                      value={contact.phone}
-                      onChange={updateContact('phone')}
-                      autoComplete="tel"
-                      placeholder="+234 801 234 5678"
-                      pattern="\+?[0-9\s\(\)\.\-]{7,20}"
-                      title="Enter a valid phone number, e.g. +234 801 234 5678"
-                      required
-                    />
-                  </label>
-                </div>
+            <fieldset className="contact-fields">
+              <legend>Your details</legend>
+              <div className="form-row">
+                <label>
+                  Full name
+                  <input
+                    value={contact.fullName}
+                    onChange={updateContact('fullName')}
+                    autoComplete="name"
+                    required
+                    minLength={2}
+                    maxLength={120}
+                  />
+                </label>
+                <label>
+                  Email address
+                  <input
+                    type="email"
+                    value={contact.email}
+                    onChange={updateContact('email')}
+                    autoComplete="email"
+                    required
+                  />
+                </label>
+                <label>
+                  Phone number
+                  <input
+                    type="tel"
+                    value={contact.phone}
+                    onChange={updateContact('phone')}
+                    autoComplete="tel"
+                    placeholder="+234 801 234 5678"
+                    pattern="\+?[0-9\s\(\)\.\-]{7,20}"
+                    title="Enter a valid phone number, e.g. +234 801 234 5678"
+                    required
+                  />
+                </label>
+              </div>
+              {!user && (
+                <p className="muted small">
+                  No account needed.{' '}
+                  <Link to="/login" state={{ from: location.pathname + location.search }}>
+                    Log in
+                  </Link>{' '}
+                  if you'd like to keep all your bookings in one place.
+                </p>
+              )}
               </fieldset>
-            ) : (
-              <p className="muted">
-                You need an account to book. Sign up (or{' '}
-                <Link to="/login" state={{ from: location.pathname + location.search }}>
-                  log in
-                </Link>
-                ) and we'll bring you right back to this time.
-              </p>
-            )}
             <label>
               Notes <span className="muted">(optional)</span>
               <textarea
@@ -284,7 +288,7 @@ export default function Book() {
               />
             </label>
             <button type="submit" className="btn btn-primary" disabled={submitting}>
-              {submitting ? 'Booking…' : user ? 'Confirm booking' : 'Sign up to book'}
+              {submitting ? 'Sending…' : 'Request booking'}
             </button>
           </form>
         )}

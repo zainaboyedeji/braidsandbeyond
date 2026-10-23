@@ -3,6 +3,7 @@ const db = require('../db');
 const config = require('../config');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const bookingService = require('../services/bookingService');
+const { sendStatusEmail } = require('../services/email');
 const { getBusinessHours, setBusinessHours } = require('../services/businessHours');
 const { HttpError, asyncHandler, parseId } = require('../utils/http');
 
@@ -36,13 +37,13 @@ router.get(
 
     const { rows } = await db.query(
       `SELECT a.id, a.start_time, a.end_time, a.status, a.notes, a.created_at,
-              u.id AS client_id,
+              a.client_id,
               COALESCE(a.contact_name, u.full_name) AS client_name,
               COALESCE(a.contact_email, u.email)    AS client_email,
               COALESCE(a.contact_phone, u.phone)    AS client_phone,
               s.id AS service_id, s.name AS service_name, s.duration_minutes, s.price_cents
          FROM appointments a
-         JOIN users u    ON u.id = a.client_id
+         LEFT JOIN users u ON u.id = a.client_id
          JOIN services s ON s.id = a.service_id
         WHERE ${where.join(' AND ')}
         ORDER BY a.start_time ASC`,
@@ -57,8 +58,21 @@ router.patch(
   '/appointments/:id/status',
   asyncHandler(async (req, res) => {
     const appointmentId = parseId(req.params.id);
-    const booking = await bookingService.updateBookingStatus({ appointmentId, status: req.body.status });
-    res.json({ booking });
+    const { booking, previousStatus } = await bookingService.updateBookingStatus({
+      appointmentId,
+      status: req.body.status,
+    });
+
+    // Let the customer know when the salon confirms or cancels. Committed already, so email failure is non-fatal.
+    let emailSent = false;
+    if (booking.status !== previousStatus) {
+      try {
+        emailSent = await sendStatusEmail(booking);
+      } catch (err) {
+        console.error(`Booking #${booking.id} status saved but email sending failed:`, err.message);
+      }
+    }
+    res.json({ booking, emailSent });
   })
 );
 
@@ -71,8 +85,14 @@ router.get(
          COUNT(*) FILTER (WHERE (a.start_time AT TIME ZONE $1)::date = (NOW() AT TIME ZONE $1)::date
                             AND a.status IN ('pending', 'confirmed'))                      AS today_count,
          COUNT(*) FILTER (WHERE a.start_time >= NOW() AND a.status IN ('pending', 'confirmed')) AS upcoming_count,
+         COUNT(*) FILTER (WHERE a.start_time >= NOW() AND a.status = 'pending')                 AS pending_count,
          COALESCE(SUM(s.price_cents) FILTER (WHERE a.status = 'completed'), 0)            AS revenue_cents,
-         (SELECT COUNT(*) FROM users WHERE role = 'client')                               AS client_count
+         -- Registered clients plus guests (counted once per email address)
+         (SELECT COUNT(*) FROM (
+            SELECT LOWER(email) FROM users WHERE role = 'client'
+            UNION
+            SELECT LOWER(contact_email) FROM appointments WHERE client_id IS NULL
+          ) clients)                                                                      AS client_count
        FROM appointments a
        JOIN services s ON s.id = a.service_id`,
       [config.salon.timezone]
@@ -81,6 +101,7 @@ router.get(
     res.json({
       todayCount: Number(r.today_count),
       upcomingCount: Number(r.upcoming_count),
+      pendingCount: Number(r.pending_count),
       revenueCents: Number(r.revenue_cents),
       clientCount: Number(r.client_count),
     });

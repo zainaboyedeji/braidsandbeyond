@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS appointments (
   service_id  INTEGER            NOT NULL REFERENCES services(id) ON DELETE RESTRICT,
   start_time  TIMESTAMPTZ        NOT NULL,
   end_time    TIMESTAMPTZ        NOT NULL,
-  status      appointment_status NOT NULL DEFAULT 'confirmed',
+  status      appointment_status NOT NULL DEFAULT 'pending',
   notes       TEXT,
   created_at  TIMESTAMPTZ        NOT NULL DEFAULT NOW(),
   updated_at  TIMESTAMPTZ        NOT NULL DEFAULT NOW(),
@@ -83,6 +83,30 @@ CREATE TABLE IF NOT EXISTS appointments (
 ALTER TABLE appointments ADD COLUMN IF NOT EXISTS contact_name  VARCHAR(120);
 ALTER TABLE appointments ADD COLUMN IF NOT EXISTS contact_email VARCHAR(255);
 ALTER TABLE appointments ADD COLUMN IF NOT EXISTS contact_phone VARCHAR(30);
+
+-- Guest bookings: no account, so client_id is NULL and the contact_* columns are the only record of the customer
+ALTER TABLE appointments ALTER COLUMN client_id DROP NOT NULL;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'appointments_has_customer') THEN
+    ALTER TABLE appointments ADD CONSTRAINT appointments_has_customer
+      CHECK (client_id IS NOT NULL OR contact_email IS NOT NULL);
+  END IF;
+END$$;
+
+-- New bookings wait for the salon to confirm them (pending still holds the slot)
+ALTER TABLE appointments ALTER COLUMN status SET DEFAULT 'pending';
+
+-- Secret for the "manage your booking" link (view / reschedule / cancel without logging in).
+-- Two UUIDv4s = 244 random bits; gen_random_uuid() is built into Postgres 13+.
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS manage_token VARCHAR(64);
+UPDATE appointments
+   SET manage_token = replace(gen_random_uuid()::text, '-', '') || replace(gen_random_uuid()::text, '-', '')
+ WHERE manage_token IS NULL;
+ALTER TABLE appointments
+  ALTER COLUMN manage_token SET DEFAULT replace(gen_random_uuid()::text, '-', '') || replace(gen_random_uuid()::text, '-', ''),
+  ALTER COLUMN manage_token SET NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS appointments_manage_token_uniq ON appointments (manage_token);
 
 CREATE INDEX IF NOT EXISTS appointments_client_idx     ON appointments (client_id);
 CREATE INDEX IF NOT EXISTS appointments_service_idx    ON appointments (service_id);

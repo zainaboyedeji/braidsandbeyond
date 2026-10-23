@@ -56,6 +56,10 @@ export default function AdminDashboard() {
             <strong>{stats.todayCount}</strong>
           </div>
           <div className="card stat">
+            <span className="muted">Awaiting confirmation</span>
+            <strong>{stats.pendingCount}</strong>
+          </div>
+          <div className="card stat">
             <span className="muted">Upcoming</span>
             <strong>{stats.upcomingCount}</strong>
           </div>
@@ -108,7 +112,10 @@ export default function AdminDashboard() {
                     {formatTime(a.start_time, salon.timezone)} – {formatTime(a.end_time, salon.timezone)}
                   </td>
                   <td>
-                    <div>{a.client_name}</div>
+                    <div>
+                      {a.client_name}
+                      {!a.client_id && <span className="muted small"> (guest)</span>}
+                    </div>
                     <div className="muted small">
                       <a href={`mailto:${a.client_email}`}>{a.client_email}</a>
                       {a.client_phone && ` · ${a.client_phone}`}
@@ -120,18 +127,30 @@ export default function AdminDashboard() {
                   </td>
                   <td className="small">{a.notes || '—'}</td>
                   <td>
-                    <select
-                      value={a.status}
-                      disabled={busyId === a.id}
-                      onChange={(e) => changeStatus(a.id, e.target.value)}
-                      className={`badge-select badge-${a.status}`}
-                    >
-                      {STATUSES.map((s) => (
-                        <option key={s} value={s}>
-                          {s}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="actions">
+                      {a.status === 'pending' && (
+                        <button
+                          type="button"
+                          className="btn btn-primary btn-sm"
+                          disabled={busyId === a.id}
+                          onClick={() => changeStatus(a.id, 'confirmed')}
+                        >
+                          Confirm
+                        </button>
+                      )}
+                      <select
+                        value={a.status}
+                        disabled={busyId === a.id}
+                        onChange={(e) => changeStatus(a.id, e.target.value)}
+                        className={`badge-select badge-${a.status}`}
+                      >
+                        {STATUSES.map((s) => (
+                          <option key={s} value={s}>
+                            {s}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </td>
                 </tr>
               ))}

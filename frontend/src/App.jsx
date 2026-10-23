@@ -6,6 +6,7 @@ import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Book from './pages/Book';
+import ManageBooking from './pages/ManageBooking';
 import MyAppointments from './pages/MyAppointments';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminServices from './pages/AdminServices';
@@ -28,6 +29,7 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/book" element={<Book />} />
+          <Route path="/manage/:token" element={<ManageBooking />} />
           <Route
             path="/my-appointments"
             element={

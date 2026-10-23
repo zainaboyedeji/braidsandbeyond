@@ -70,17 +70,23 @@ export default function MyAppointments() {
                   <strong>{a.service_name}</strong>
                   <div>{formatDateTime(a.start_time, salon.timezone)}</div>
                   <div className="muted">
-                    #{a.id} · {formatPrice(a.price_cents, salon.currency)}
+                    #{a.id} · {formatPrice(a.price_cents, salon.currency)}{' '}
+                    <span className={`badge badge-${a.status}`}>{a.status}</span>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  className="btn btn-danger btn-sm"
-                  onClick={() => cancel(a.id)}
-                  disabled={busyId === a.id}
-                >
-                  {busyId === a.id ? 'Cancelling…' : 'Cancel'}
-                </button>
+                <div className="actions">
+                  <Link to={`/manage/${a.manage_token}`} className="btn btn-outline btn-sm">
+                    Reschedule
+                  </Link>
+                  <button
+                    type="button"
+                    className="btn btn-danger btn-sm"
+                    onClick={() => cancel(a.id)}
+                    disabled={busyId === a.id}
+                  >
+                    {busyId === a.id ? 'Cancelling…' : 'Cancel'}
+                  </button>
+                </div>
               </div>
             ))}
           </div>
