@@ -10,6 +10,7 @@ const DEFAULT_SALON = {
   slotIntervalMinutes: 15,
   hours: [],
   pickupVehicles: [],
+  deposits: { enabled: false, depositPercent: 50, holdMinutes: 30, freeCancellationHours: 24, lateCancelRefundPercent: 50 },
 };
 
 export function AppProvider({ children }) {
@@ -54,6 +55,14 @@ export function AppProvider({ children }) {
     return data.user;
   }, []);
 
+  // Sets the new password from an emailed reset link and logs the user straight in
+  const resetPassword = useCallback(async (token, password) => {
+    const data = await api.post('/auth/reset-password', { token, password });
+    setToken(data.token);
+    setUser(data.user);
+    return data.user;
+  }, []);
+
   // Re-fetch after the admin changes opening hours
   const refreshSalon = useCallback(async () => {
     setSalon(await api.get('/config'));
@@ -65,8 +74,8 @@ export function AppProvider({ children }) {
   }, []);
 
   const value = useMemo(
-    () => ({ user, salon, loading, login, register, logout, refreshSalon }),
-    [user, salon, loading, login, register, logout, refreshSalon]
+    () => ({ user, salon, loading, login, register, resetPassword, logout, refreshSalon }),
+    [user, salon, loading, login, register, resetPassword, logout, refreshSalon]
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

@@ -17,7 +17,7 @@ export default function Footer() {
             </span>
             <BrandName name={salon.name} />
           </Link>
-          <p>Braids, styling and beyond. Book your next look online in seconds.</p>
+          <p>Braids, wigs, styling and everything hair. Book your next look online in seconds.</p>
         </div>
         <div>
           <h4>Explore</h4>

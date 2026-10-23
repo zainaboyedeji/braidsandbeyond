@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { useApp } from '../context/AppContext';
-import { addDays, formatPickup, formatPrice, formatTime, todayInZone } from '../utils/format';
+import { addDays, formatDeposit, formatPickup, formatPrice, formatTime, todayInZone } from '../utils/format';
 
 const STATUSES = ['pending', 'confirmed', 'completed', 'cancelled'];
 
@@ -32,6 +32,19 @@ export default function AdminDashboard() {
   useEffect(() => {
     load();
   }, [load]);
+
+  async function depositAction(id, action) {
+    setBusyId(id);
+    setError('');
+    try {
+      await api.patch(`/admin/appointments/${id}/deposit`, { action });
+      await load();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   async function changeStatus(id, status) {
     setBusyId(id);
@@ -147,6 +160,36 @@ export default function AdminDashboard() {
                   <td>
                     {a.service_name}
                     <div className="muted small">{formatPrice(a.price_cents, salon.currency)}</div>
+                    {a.deposit_cents && (
+                      <div className={`small ${['refund_failed', 'refund_due'].includes(a.deposit_status) ? 'text-danger' : ''}`}>
+                        {formatDeposit(a, salon.currency)}
+                        {a.deposit_status === 'refund_failed' && ' (refund it in Paystack)'}
+                      </div>
+                    )}
+                    {a.deposit_status === 'unpaid' && a.payment_method === 'transfer' && a.status !== 'cancelled' && (
+                      <button
+                        type="button"
+                        className="btn btn-outline btn-sm"
+                        disabled={busyId === a.id}
+                        onClick={() => depositAction(a.id, 'received')}
+                      >
+                        Deposit received
+                      </button>
+                    )}
+                    {['refund_due', 'refund_failed'].includes(a.deposit_status) && (
+                      <button
+                        type="button"
+                        className="btn btn-outline btn-sm"
+                        disabled={busyId === a.id}
+                        onClick={() => {
+                          if (window.confirm(`Have you sent ${a.client_name} their refund?`)) {
+                            depositAction(a.id, 'refunded');
+                          }
+                        }}
+                      >
+                        Mark refunded
+                      </button>
+                    )}
                     {a.pickup_hours && (
                       <div className="small">
                         {formatPickup(a)} · {formatPrice(a.pickup_price_cents, salon.currency)}

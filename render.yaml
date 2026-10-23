@@ -49,6 +49,27 @@ services:
         sync: false
       - key: CLIENT_ORIGIN
         sync: false
+      # Deposits: Paystack and/or bank transfer (leave all blank to take bookings without payment)
+      - key: PAYSTACK_SECRET_KEY
+        sync: false
+      - key: BANK_NAME
+        value: Providus Bank
+      - key: BANK_ACCOUNT_NAME
+        value: BEAUTY HUB AND COSMETICS ESSENTIALS NIGERIA
+      - key: BANK_ACCOUNT_NUMBER
+        value: "1307435193"
+      - key: BANK2_NAME
+        value: Moniepoint MFB
+      - key: BANK2_ACCOUNT_NAME
+        value: BEAUTY HUB AND COSMETICS ESSENTIALS NIGERIA
+      - key: BANK2_ACCOUNT_NUMBER
+        value: "5249789577"
+      - key: DEPOSIT_PERCENT
+        value: "50"
+      - key: FREE_CANCELLATION_HOURS
+        value: "24"
+      - key: LATE_CANCEL_REFUND_PERCENT
+        value: "50"
       # Optional: automatic WhatsApp confirmations (leave blank to skip)
       - key: WHATSAPP_TOKEN
         sync: false

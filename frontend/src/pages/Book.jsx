@@ -1,10 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { api, assetUrl } from '../api/client';
+import TransferDetails from '../components/TransferDetails';
 import { useApp } from '../context/AppContext';
 import {
+  PAYMENT_METHODS,
   PICKUP_TIERS,
   addDays,
+  cancellationPolicy,
+  depositFor,
   formatDateTime,
   formatDuration,
   formatPickup,
@@ -39,6 +43,7 @@ export default function Book() {
   const [confirmation, setConfirmation] = useState(null);
   const [contact, setContact] = useState({ fullName: '', email: '', phone: '' });
   const [pickup, setPickup] = useState(NO_PICKUP);
+  const [paymentMethod, setPaymentMethod] = useState(salon.deposits.methods?.[0] || null);
 
   // Pre-fill contact details from the account; the customer can still edit them for this booking
   useEffect(() => {
@@ -90,6 +95,8 @@ export default function Book() {
   const pickupVehicle = pickupVehicles.find((v) => v.id === pickup.vehicleId);
   const pickupPrice = (vehicle, hours) => (hours === 6 ? vehicle.price_6h_cents : vehicle.price_12h_cents);
   const pickupPriceCents = pickupVehicle ? pickupPrice(pickupVehicle, pickup.hours) : 0;
+  const totalCents = (selectedService?.price_cents || 0) + pickupPriceCents;
+  const depositCents = depositFor(totalCents, salon.deposits);
 
   async function handleBook(e) {
     e.preventDefault();
@@ -102,8 +109,15 @@ export default function Book() {
         notes: notes.trim() || undefined,
         contact,
         pickup: pickupVehicle ? { vehicleId: pickupVehicle.id, hours: pickup.hours, address: pickup.address } : undefined,
+        paymentMethod: depositCents > 0 ? paymentMethod : undefined,
       });
+      if (data.paymentUrl) {
+        // Off to Paystack; it sends the client back to /payment/callback
+        window.location.assign(data.paymentUrl);
+        return;
+      }
       setConfirmation(data);
+      setSubmitting(false);
     } catch (err) {
       setError(err.message);
       if (err.status === 409) {
@@ -111,7 +125,6 @@ export default function Book() {
         setSelectedSlot(null);
         loadSlots();
       }
-    } finally {
       setSubmitting(false);
     }
   }
@@ -129,6 +142,9 @@ export default function Book() {
           <p>
             {formatPickup(b)} · {formatPrice(b.pickup_price_cents, salon.currency)}
           </p>
+        )}
+        {b.deposit_status === 'unpaid' && b.payment_method === 'transfer' && (
+          <TransferDetails booking={b} banks={salon.deposits.banks} currency={salon.currency} />
         )}
         <p>
           <span className="badge badge-pending">pending</span> We'll email you as soon as the salon confirms it.
@@ -365,13 +381,57 @@ export default function Book() {
                 placeholder="Anything we should know?"
               />
             </label>
-            {pickupVehicle && (
-              <p className="pickup-total">
-                Total: {formatPrice(selectedService.price_cents + pickupPriceCents, salon.currency)}
-              </p>
+            {(pickupVehicle || depositCents > 0) && (
+              <div className="price-breakdown">
+                <div>
+                  <span>Total</span>
+                  <strong>{formatPrice(totalCents, salon.currency)}</strong>
+                </div>
+                {depositCents > 0 && (
+                  <>
+                    <div>
+                      <span>Deposit to pay now ({salon.deposits.depositPercent}%)</span>
+                      <strong>{formatPrice(depositCents, salon.currency)}</strong>
+                    </div>
+                    <div className="muted">
+                      <span>Balance to pay at the salon</span>
+                      <span>{formatPrice(totalCents - depositCents, salon.currency)}</span>
+                    </div>
+                  </>
+                )}
+              </div>
             )}
+            {depositCents > 0 && salon.deposits.methods.length > 1 && (
+              <fieldset className="contact-fields">
+                <legend>How would you like to pay the deposit?</legend>
+                <div className="pickup-options">
+                  {salon.deposits.methods.map((m) => (
+                    <button
+                      type="button"
+                      key={m}
+                      className={`slot ${paymentMethod === m ? 'slot-selected' : ''}`}
+                      onClick={() => setPaymentMethod(m)}
+                    >
+                      {PAYMENT_METHODS[m]}
+                      <div className="small">{m === 'paystack' ? 'Card, bank or USSD' : 'Pay into our account'}</div>
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+            )}
+            {depositCents > 0 && <p className="muted small">{cancellationPolicy(salon.deposits)}</p>}
             <button type="submit" className="btn btn-primary" disabled={submitting}>
-              {submitting ? 'Sending…' : 'Request booking'}
+              {depositCents > 0 && paymentMethod === 'transfer'
+                ? submitting
+                  ? 'Booking…'
+                  : `Book & pay ${formatPrice(depositCents, salon.currency)} by transfer`
+                : depositCents > 0
+                ? submitting
+                  ? 'Taking you to payment…'
+                  : `Pay ${formatPrice(depositCents, salon.currency)} deposit & book`
+                : submitting
+                  ? 'Sending…'
+                  : 'Request booking'}
             </button>
           </form>
         )}

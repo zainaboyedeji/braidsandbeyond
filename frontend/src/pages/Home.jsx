@@ -24,12 +24,13 @@ export default function Home() {
   return (
     <>
       <section className="hero">
-        <span className="hero-eyebrow">Braids · Styling · Beyond</span>
+        <span className="hero-eyebrow">Braids · Wigs · Styling · Beyond</span>
         <h1>
           Your crown, <em>beautifully</em> done
         </h1>
         <p>
-          Knotless braids, cornrows, twists and more at {salon.name}. Choose your style and book a time that suits you.
+          Braids, cornrows, wig installation, revamps, styling and everything hair at {salon.name}. Choose your
+          service and book a time that suits you.
         </p>
         <div className="actions">
           <Link to="/book" className="btn btn-dark">

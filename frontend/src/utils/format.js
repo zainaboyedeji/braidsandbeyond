@@ -67,3 +67,66 @@ export function formatPickup(booking) {
   if (!booking.pickup_hours) return null;
   return `${PICKUP_TIERS[booking.pickup_tier] || ''} pickup · ${booking.pickup_vehicle_name} · ${booking.pickup_hours} hours`;
 }
+
+export const DEPOSIT_LABELS = {
+  unpaid: 'deposit not paid',
+  paid: 'deposit paid',
+  refunded: 'deposit refunded',
+  partially_refunded: 'deposit partly refunded',
+  forfeited: 'deposit kept',
+  refund_due: 'refund due',
+  refund_failed: 'refund failed',
+};
+
+export const PAYMENT_METHODS = { paystack: 'Pay online', transfer: 'Bank transfer' };
+
+// "Deposit ₦7,500.00 paid", "Deposit ₦7,500.00 · ₦3,750.00 refunded", or null when no deposit was taken
+export function formatDeposit(booking, currency) {
+  if (!booking.deposit_cents) return null;
+  const amount = formatPrice(booking.deposit_cents, currency);
+  if (booking.refund_cents) {
+    const refund = formatPrice(booking.refund_cents, currency);
+    if (booking.deposit_status === 'refund_failed') return `Deposit ${amount} · refund of ${refund} failed`;
+    if (booking.deposit_status === 'refund_due') return `Deposit ${amount} · refund of ${refund} due by transfer`;
+    return `Deposit ${amount} · ${refund} refunded`;
+  }
+  if (booking.deposit_status === 'unpaid' && booking.payment_method === 'transfer') {
+    return `Deposit ${amount} · awaiting transfer`;
+  }
+  return `Deposit ${amount} · ${DEPOSIT_LABELS[booking.deposit_status]?.replace('deposit ', '') || booking.deposit_status}`;
+}
+
+// Deposit for a booking total; mirrors depositFor() on the server
+export function depositFor(totalCents, deposits) {
+  if (!deposits?.enabled) return 0;
+  return Math.round((totalCents * deposits.depositPercent) / 100);
+}
+
+// "Free cancellation up to 24 hours before…"
+export function cancellationPolicy(deposits) {
+  return (
+    `Cancel at least ${deposits.freeCancellationHours} hours before your appointment for a full refund of your ` +
+    `deposit. Later cancellations get ${deposits.lateCancelRefundPercent}% of the deposit back.`
+  );
+}
+
+// What a client gets back from a paid deposit if they cancel now; mirrors refundForCancellation() on the server
+export function refundIfCancelledNow(booking, deposits) {
+  if (booking.deposit_status !== 'paid') return 0;
+  const hoursLeft = (new Date(booking.start_time).getTime() - Date.now()) / (60 * 60 * 1000);
+  if (hoursLeft >= deposits.freeCancellationHours) return booking.deposit_cents;
+  return Math.round((booking.deposit_cents * deposits.lateCancelRefundPercent) / 100);
+}
+
+// Confirm-dialog text for cancelling, spelling out the refund
+export function cancelPrompt(booking, refundCents, currency) {
+  if (booking.deposit_status !== 'paid') return 'Cancel this appointment?';
+  const deposit = formatPrice(booking.deposit_cents, currency);
+  if (refundCents >= booking.deposit_cents) {
+    return `Cancel this appointment? Your full deposit of ${deposit} will be refunded.`;
+  }
+  return (
+    `Cancel this appointment? It's less than the free-cancellation window, so you'll get ` +
+    `${formatPrice(refundCents, currency)} of your ${deposit} deposit back.`
+  );
+}

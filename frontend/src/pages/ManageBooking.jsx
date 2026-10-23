@@ -1,8 +1,19 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../api/client';
+import TransferDetails from '../components/TransferDetails';
 import { useApp } from '../context/AppContext';
-import { addDays, formatDateTime, formatPickup, formatPrice, formatTime, todayInZone } from '../utils/format';
+import {
+  addDays,
+  cancelPrompt,
+  cancellationPolicy,
+  formatDateTime,
+  formatDeposit,
+  formatPickup,
+  formatPrice,
+  formatTime,
+  todayInZone,
+} from '../utils/format';
 
 const BOOKING_WINDOW_DAYS = 60;
 
@@ -13,6 +24,7 @@ export default function ManageBooking() {
   const today = todayInZone(salon.timezone);
 
   const [booking, setBooking] = useState(null);
+  const [refundIfCancelled, setRefundIfCancelled] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -27,7 +39,10 @@ export default function ManageBooking() {
   useEffect(() => {
     api
       .get(`/appointments/manage/${token}`)
-      .then((data) => setBooking(data.booking))
+      .then((data) => {
+        setBooking(data.booking);
+        setRefundIfCancelled(data.refundIfCancelled);
+      })
       .catch((err) => setError(err.status === 404 ? 'This booking link is invalid or has expired.' : err.message))
       .finally(() => setLoading(false));
   }, [token]);
@@ -72,8 +87,20 @@ export default function ManageBooking() {
     }
   }
 
+  async function payDeposit() {
+    setBusy(true);
+    setError('');
+    try {
+      const data = await api.post(`/appointments/manage/${token}/pay`);
+      window.location.assign(data.paymentUrl);
+    } catch (err) {
+      setError(err.message);
+      setBusy(false);
+    }
+  }
+
   async function cancel() {
-    if (!window.confirm('Cancel this appointment?')) return;
+    if (!window.confirm(cancelPrompt(booking, refundIfCancelled, salon.currency))) return;
     setBusy(true);
     setError('');
     setNotice('');
@@ -81,7 +108,14 @@ export default function ManageBooking() {
       const data = await api.patch(`/appointments/manage/${token}/cancel`);
       setBooking(data.booking);
       setRescheduling(false);
-      setNotice('Your appointment has been cancelled.');
+      const b = data.booking;
+      setNotice(
+        b.deposit_status === 'refund_failed'
+          ? `Your appointment has been cancelled. The salon will refund ${formatPrice(b.refund_cents, salon.currency)} of your deposit.`
+          : b.refund_cents
+            ? `Your appointment has been cancelled and ${formatPrice(b.refund_cents, salon.currency)} of your deposit is being refunded. It can take a few working days to reach you.`
+            : 'Your appointment has been cancelled.'
+      );
     } catch (err) {
       setError(err.message);
     } finally {
@@ -103,6 +137,8 @@ export default function ManageBooking() {
   }
 
   const isUpcoming = new Date(booking.start_time) > new Date() && ['pending', 'confirmed'].includes(booking.status);
+  const awaitingDeposit = isUpcoming && booking.deposit_status === 'unpaid';
+  const deposit = formatDeposit(booking, salon.currency);
 
   return (
     <>
@@ -124,15 +160,48 @@ export default function ManageBooking() {
             <div className="muted">
               #{booking.id} · {formatPrice(booking.price_cents, salon.currency)} · {booking.client_name}
             </div>
+            {deposit && <div className="small">{deposit}</div>}
           </div>
           <span className={`badge badge-${booking.status}`}>{booking.status}</span>
         </div>
 
-        {booking.status === 'pending' && (
-          <p className="muted small">The salon hasn't confirmed this booking yet. We'll email you when they do.</p>
+        {awaitingDeposit && booking.payment_method === 'transfer' ? (
+          <>
+            {salon.deposits.banks?.length > 0 && (
+              <TransferDetails booking={booking} banks={salon.deposits.banks} currency={salon.currency} />
+            )}
+            <div className="actions">
+              <button type="button" className="btn btn-ghost" onClick={cancel} disabled={busy}>
+                Cancel booking
+              </button>
+            </div>
+          </>
+        ) : awaitingDeposit ? (
+          <>
+            <div className="alert alert-warning">
+              Your {formatPrice(booking.deposit_cents, salon.currency)} deposit hasn't been paid yet. The time is only
+              held for {salon.deposits.holdMinutes} minutes after booking.
+            </div>
+            <div className="actions">
+              <button type="button" className="btn btn-primary" onClick={payDeposit} disabled={busy}>
+                {busy ? 'Taking you to payment…' : `Pay ${formatPrice(booking.deposit_cents, salon.currency)} deposit`}
+              </button>
+              <button type="button" className="btn btn-ghost" onClick={cancel} disabled={busy}>
+                Cancel booking
+              </button>
+            </div>
+          </>
+        ) : (
+          booking.status === 'pending' && (
+            <p className="muted small">The salon hasn't confirmed this booking yet. We'll email you when they do.</p>
+          )
         )}
 
-        {isUpcoming && !rescheduling && (
+        {isUpcoming && booking.deposit_status === 'paid' && (
+          <p className="muted small">{cancellationPolicy(salon.deposits)}</p>
+        )}
+
+        {isUpcoming && !awaitingDeposit && !rescheduling && (
           <div className="actions">
             <button type="button" className="btn btn-primary" onClick={() => setRescheduling(true)} disabled={busy}>
               Reschedule

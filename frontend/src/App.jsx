@@ -5,6 +5,9 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
+import PaymentCallback from './pages/PaymentCallback';
 import Book from './pages/Book';
 import ManageBooking from './pages/ManageBooking';
 import MyAppointments from './pages/MyAppointments';
@@ -29,8 +32,11 @@ export default function App() {
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password/:token" element={<ResetPassword />} />
           <Route path="/book" element={<Book />} />
           <Route path="/manage/:token" element={<ManageBooking />} />
+          <Route path="/payment/callback" element={<PaymentCallback />} />
           <Route
             path="/my-appointments"
             element={

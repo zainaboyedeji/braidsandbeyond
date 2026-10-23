@@ -2,7 +2,14 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { useApp } from '../context/AppContext';
-import { formatDateTime, formatPickup, formatPrice } from '../utils/format';
+import {
+  cancelPrompt,
+  formatDateTime,
+  formatDeposit,
+  formatPickup,
+  formatPrice,
+  refundIfCancelledNow,
+} from '../utils/format';
 
 export default function MyAppointments() {
   const { salon } = useApp();
@@ -26,8 +33,10 @@ export default function MyAppointments() {
     load();
   }, []);
 
-  async function cancel(id) {
-    if (!window.confirm('Cancel this appointment?')) return;
+  async function cancel(a) {
+    const refund = refundIfCancelledNow(a, salon.deposits);
+    if (!window.confirm(cancelPrompt(a, refund, salon.currency))) return;
+    const id = a.id;
     setBusyId(id);
     setError('');
     try {
@@ -70,6 +79,7 @@ export default function MyAppointments() {
                   <strong>{a.service_name}</strong>
                   <div>{formatDateTime(a.start_time, salon.timezone)}</div>
                   {a.pickup_hours && <div className="small">{formatPickup(a)}</div>}
+                  {a.deposit_cents && <div className="small">{formatDeposit(a, salon.currency)}</div>}
                   <div className="muted">
                     #{a.id} · {formatPrice(a.price_cents, salon.currency)}{' '}
                     <span className={`badge badge-${a.status}`}>{a.status}</span>
@@ -82,7 +92,7 @@ export default function MyAppointments() {
                   <button
                     type="button"
                     className="btn btn-danger btn-sm"
-                    onClick={() => cancel(a.id)}
+                    onClick={() => cancel(a)}
                     disabled={busyId === a.id}
                   >
                     {busyId === a.id ? 'Cancelling…' : 'Cancel'}
@@ -101,6 +111,7 @@ export default function MyAppointments() {
                     <div>
                       <strong>{a.service_name}</strong>
                       <div>{formatDateTime(a.start_time, salon.timezone)}</div>
+                      {a.deposit_cents && <div className="small">{formatDeposit(a, salon.currency)}</div>}
                     </div>
                     <span className={`badge badge-${a.status}`}>{a.status}</span>
                   </div>

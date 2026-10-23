@@ -74,6 +74,31 @@ One Render web service builds the React app and serves it from Express alongside
 | Email | Brevo SMTP on port 2525 | `SMTP_*`, `EMAIL_FROM`, `ADMIN_EMAIL` |
 | WhatsApp (optional) | Meta WhatsApp Cloud API | `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_TEMPLATE_NAME` |
 
+### Deposits (Paystack and/or bank transfer)
+
+Clients pay a **50% deposit** (of service + pickup) to book, choosing how when both ways are set up:
+
+- **Pay online** (`PAYSTACK_SECRET_KEY`): their time is held for 30 minutes while they pay on Paystack;
+  unpaid bookings are then cancelled and the slot freed.
+- **Bank transfer** (`BANK_NAME`, `BANK_ACCOUNT_NAME`, `BANK_ACCOUNT_NUMBER`): they see the bank details and a
+  reference ("Booking 42"). The booking holds its slot until the admin clicks **Deposit received** (or cancels it).
+
+| Who cancels | When | Deposit refunded |
+| --- | --- | --- |
+| Client | 24+ hours before | 100% |
+| Client | less than 24 hours before | 50% |
+| Salon (admin) | any time | 100% |
+
+Paystack deposits are refunded automatically. Transfer deposits (and any Paystack refund that fails) show as
+"refund due" on the dashboard: send the money yourself, then click **Mark refunded**. The percentages and hours are env vars (see `backend/.env.example`).
+
+Setup:
+1. Create a business at [paystack.com](https://paystack.com) and copy the **Secret key** from
+   Settings → API Keys & Webhooks (`sk_test_…` to try it with test cards, `sk_live_…` once your business is activated).
+2. Set `PAYSTACK_SECRET_KEY` on Render.
+3. On the same Paystack page, set the **Webhook URL** to `https://<your site>/api/payments/webhook`
+   (so payments still count if a client closes the tab before returning to the site).
+
 ### WhatsApp booking confirmations
 
 When an admin sets a booking to **confirmed**, the client gets their booking details on WhatsApp
