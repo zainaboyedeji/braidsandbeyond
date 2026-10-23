@@ -87,6 +87,18 @@ const config = {
     from: process.env.EMAIL_FROM,
     adminEmail: process.env.ADMIN_EMAIL,
   },
+
+  // Optional: set WHATSAPP_TOKEN + WHATSAPP_PHONE_NUMBER_ID to message customers when a booking is confirmed
+  whatsapp: {
+    enabled: Boolean(process.env.WHATSAPP_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID),
+    token: process.env.WHATSAPP_TOKEN,
+    phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID,
+    apiVersion: process.env.WHATSAPP_API_VERSION || 'v21.0',
+    templateName: process.env.WHATSAPP_TEMPLATE_NAME || 'booking_confirmed',
+    templateLanguage: process.env.WHATSAPP_TEMPLATE_LANGUAGE || 'en',
+    // Added to local numbers like 0801 234 5678 (no "+", no leading zeros)
+    defaultCountryCode: (process.env.WHATSAPP_DEFAULT_COUNTRY_CODE || '234').replace(/\D/g, ''),
+  },
 };
 
 module.exports = config;

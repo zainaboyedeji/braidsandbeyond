@@ -3,9 +3,11 @@ import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { api, assetUrl } from '../api/client';
 import { useApp } from '../context/AppContext';
 import {
+  PICKUP_TIERS,
   addDays,
   formatDateTime,
   formatDuration,
+  formatPickup,
   formatPrice,
   formatTime,
   todayInZone,
@@ -13,6 +15,8 @@ import {
 } from '../utils/format';
 
 const BOOKING_WINDOW_DAYS = 60;
+const PICKUP_HOURS = [6, 12];
+const NO_PICKUP = { vehicleId: null, hours: 6, address: '' };
 
 export default function Book() {
   const { user, salon } = useApp();
@@ -34,6 +38,7 @@ export default function Book() {
   const [error, setError] = useState('');
   const [confirmation, setConfirmation] = useState(null);
   const [contact, setContact] = useState({ fullName: '', email: '', phone: '' });
+  const [pickup, setPickup] = useState(NO_PICKUP);
 
   // Pre-fill contact details from the account; the customer can still edit them for this booking
   useEffect(() => {
@@ -43,6 +48,11 @@ export default function Book() {
   function updateContact(field) {
     return (e) => setContact((prev) => ({ ...prev, [field]: e.target.value }));
   }
+
+  // The form is long, so the customer is scrolled down when they submit: bring the confirmation into view
+  useEffect(() => {
+    if (confirmation) window.scrollTo({ top: 0, behavior: 'instant' });
+  }, [confirmation]);
 
   useEffect(() => {
     api
@@ -76,6 +86,11 @@ export default function Book() {
   const selectedService = services.find((s) => String(s.id) === String(serviceId));
   const isClosedDay = salon.hours.some((h) => h.weekday === weekdayOf(date) && !h.is_open);
 
+  const pickupVehicles = salon.pickupVehicles || [];
+  const pickupVehicle = pickupVehicles.find((v) => v.id === pickup.vehicleId);
+  const pickupPrice = (vehicle, hours) => (hours === 6 ? vehicle.price_6h_cents : vehicle.price_12h_cents);
+  const pickupPriceCents = pickupVehicle ? pickupPrice(pickupVehicle, pickup.hours) : 0;
+
   async function handleBook(e) {
     e.preventDefault();
     setError('');
@@ -86,6 +101,7 @@ export default function Book() {
         startTime: selectedSlot.start_time,
         notes: notes.trim() || undefined,
         contact,
+        pickup: pickupVehicle ? { vehicleId: pickupVehicle.id, hours: pickup.hours, address: pickup.address } : undefined,
       });
       setConfirmation(data);
     } catch (err) {
@@ -109,6 +125,11 @@ export default function Book() {
         <p>
           <strong>{b.service_name}</strong> on <strong>{formatDateTime(b.start_time, salon.timezone)}</strong>
         </p>
+        {b.pickup_hours && (
+          <p>
+            {formatPickup(b)} · {formatPrice(b.pickup_price_cents, salon.currency)}
+          </p>
+        )}
         <p>
           <span className="badge badge-pending">pending</span> We'll email you as soon as the salon confirms it.
         </p>
@@ -138,6 +159,7 @@ export default function Book() {
             onClick={() => {
               setConfirmation(null);
               setNotes('');
+              setPickup(NO_PICKUP);
               loadSlots();
             }}
           >
@@ -276,7 +298,63 @@ export default function Book() {
                   if you'd like to keep all your bookings in one place.
                 </p>
               )}
+            </fieldset>
+            {pickupVehicles.length > 0 && (
+              <fieldset className="contact-fields">
+                <legend>
+                  Pickup <span className="muted">(optional add-on)</span>
+                </legend>
+                <div className="pickup-options">
+                  <button
+                    type="button"
+                    className={`slot ${!pickupVehicle ? 'slot-selected' : ''}`}
+                    onClick={() => setPickup((p) => ({ ...p, vehicleId: null }))}
+                  >
+                    No pickup
+                  </button>
+                  {pickupVehicles.map((v) => (
+                    <button
+                      type="button"
+                      key={v.id}
+                      className={`slot ${pickup.vehicleId === v.id ? 'slot-selected' : ''}`}
+                      onClick={() => setPickup((p) => ({ ...p, vehicleId: v.id }))}
+                    >
+                      {PICKUP_TIERS[v.tier] || v.tier}
+                      <div className="small">{v.name}</div>
+                    </button>
+                  ))}
+                </div>
+                {pickupVehicle && (
+                  <>
+                    <div className="pickup-options">
+                      {PICKUP_HOURS.map((hours) => (
+                        <button
+                          type="button"
+                          key={hours}
+                          className={`slot ${pickup.hours === hours ? 'slot-selected' : ''}`}
+                          onClick={() => setPickup((p) => ({ ...p, hours }))}
+                        >
+                          {hours} hours
+                          <div className="small">{formatPrice(pickupPrice(pickupVehicle, hours), salon.currency)}</div>
+                        </button>
+                      ))}
+                    </div>
+                    <label>
+                      Pickup address
+                      <textarea
+                        rows={2}
+                        required
+                        minLength={5}
+                        maxLength={300}
+                        value={pickup.address}
+                        onChange={(e) => setPickup((p) => ({ ...p, address: e.target.value }))}
+                        placeholder="Where should we pick you up?"
+                      />
+                    </label>
+                  </>
+                )}
               </fieldset>
+            )}
             <label>
               Notes <span className="muted">(optional)</span>
               <textarea
@@ -287,6 +365,11 @@ export default function Book() {
                 placeholder="Anything we should know?"
               />
             </label>
+            {pickupVehicle && (
+              <p className="pickup-total">
+                Total: {formatPrice(selectedService.price_cents + pickupPriceCents, salon.currency)}
+              </p>
+            )}
             <button type="submit" className="btn btn-primary" disabled={submitting}>
               {submitting ? 'Sending…' : 'Request booking'}
             </button>

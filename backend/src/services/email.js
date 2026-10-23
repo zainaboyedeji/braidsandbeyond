@@ -66,6 +66,27 @@ function layout(title, bodyHtml) {
 </html>`;
 }
 
+const PICKUP_TIERS = { luxury: 'Luxury', basic: 'Basic' };
+
+// "Luxury · Toyota Prado 2024 · 6 hours", or null when the customer didn't add a pickup
+function pickupSummary(booking) {
+  if (!booking.pickup_hours) return null;
+  return `${PICKUP_TIERS[booking.pickup_tier] || ''} · ${booking.pickup_vehicle_name} · ${booking.pickup_hours} hours`;
+}
+
+function totalCents(booking) {
+  return booking.price_cents + (booking.pickup_price_cents || 0);
+}
+
+function pickupText(booking) {
+  if (!booking.pickup_hours) return '';
+  return [
+    `Pickup: ${pickupSummary(booking)} (${formatPrice(booking.pickup_price_cents)})`,
+    `Pickup address: ${booking.pickup_address}`,
+    `Total: ${formatPrice(totalCents(booking))}`,
+  ].join('\n');
+}
+
 function detailsTable(booking) {
   const rows = [
     ['Booking #', booking.id],
@@ -75,6 +96,13 @@ function detailsTable(booking) {
     ['Duration', `${booking.duration_minutes} minutes`],
     ['Price', formatPrice(booking.price_cents)],
   ];
+  if (booking.pickup_hours) {
+    rows.push(
+      ['Pickup', `${pickupSummary(booking)} (${formatPrice(booking.pickup_price_cents)})`],
+      ['Pickup address', booking.pickup_address],
+      ['Total', formatPrice(totalCents(booking))]
+    );
+  }
   if (booking.notes) rows.push(['Notes', booking.notes]);
 
   return `<table role="presentation" width="100%" style="border-collapse:collapse;font-size:14px;">
@@ -133,6 +161,7 @@ function buildAdminEmail(booking) {
       `Booking #${booking.id}`,
       `Service: ${booking.service_name}`,
       `When: ${formatDateTime(booking.start_time)}`,
+      pickupText(booking),
       clientText(booking),
       booking.notes ? `Notes: ${booking.notes}` : '',
       `Confirm it at ${config.publicUrl}/admin`,
@@ -162,6 +191,7 @@ function buildClientEmail(booking) {
       `Booking #${booking.id}`,
       `Service: ${booking.service_name}`,
       `When: ${formatDateTime(booking.start_time)}`,
+      pickupText(booking),
       `Price: ${formatPrice(booking.price_cents)}`,
       `View, reschedule or cancel: ${manageUrl(booking)}`,
     ].join('\n'),
@@ -205,6 +235,7 @@ function buildStatusEmail(booking) {
       `Booking #${booking.id}`,
       `Service: ${booking.service_name}`,
       `When: ${formatDateTime(booking.start_time)}`,
+      pickupText(booking),
       booking.status === 'cancelled' ? '' : `Manage your booking: ${manageUrl(booking)}`,
     ].join('\n'),
   };
@@ -230,6 +261,7 @@ function buildRescheduleAdminEmail(booking, previousStart) {
       `Service: ${booking.service_name}`,
       `Was: ${formatDateTime(previousStart)}`,
       `Now: ${formatDateTime(booking.start_time)}`,
+      pickupText(booking),
       clientText(booking),
     ].join('\n'),
   };
@@ -252,6 +284,7 @@ function buildRescheduleClientEmail(booking) {
       `Booking #${booking.id}`,
       `Service: ${booking.service_name}`,
       `When: ${formatDateTime(booking.start_time)}`,
+      pickupText(booking),
       `Manage your booking: ${manageUrl(booking)}`,
     ].join('\n'),
   };
@@ -274,6 +307,7 @@ function buildCustomerCancelledAdminEmail(booking) {
       `Booking #${booking.id}`,
       `Service: ${booking.service_name}`,
       `When: ${formatDateTime(booking.start_time)}`,
+      pickupText(booking),
       clientText(booking),
     ].join('\n'),
   };

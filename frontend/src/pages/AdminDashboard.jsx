@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { useApp } from '../context/AppContext';
-import { addDays, formatPrice, formatTime, todayInZone } from '../utils/format';
+import { addDays, formatPickup, formatPrice, formatTime, todayInZone } from '../utils/format';
 
 const STATUSES = ['pending', 'confirmed', 'completed', 'cancelled'];
 
@@ -124,25 +124,22 @@ export default function AdminDashboard() {
                   <td>
                     {a.service_name}
                     <div className="muted small">{formatPrice(a.price_cents, salon.currency)}</div>
+                    {a.pickup_hours && (
+                      <div className="small">
+                        {formatPickup(a)} · {formatPrice(a.pickup_price_cents, salon.currency)}
+                        <div className="muted">From: {a.pickup_address}</div>
+                      </div>
+                    )}
                   </td>
                   <td className="small">{a.notes || '—'}</td>
                   <td>
                     <div className="actions">
-                      {a.status === 'pending' && (
-                        <button
-                          type="button"
-                          className="btn btn-primary btn-sm"
-                          disabled={busyId === a.id}
-                          onClick={() => changeStatus(a.id, 'confirmed')}
-                        >
-                          Confirm
-                        </button>
-                      )}
                       <select
                         value={a.status}
                         disabled={busyId === a.id}
                         onChange={(e) => changeStatus(a.id, e.target.value)}
                         className={`badge-select badge-${a.status}`}
+                        aria-label={`Status of booking #${a.id}`}
                       >
                         {STATUSES.map((s) => (
                           <option key={s} value={s}>

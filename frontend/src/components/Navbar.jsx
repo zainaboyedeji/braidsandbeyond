@@ -34,6 +34,7 @@ export default function Navbar() {
                 </NavLink>
                 <NavLink to="/admin/services">Services</NavLink>
                 <NavLink to="/admin/hours">Hours</NavLink>
+                <NavLink to="/admin/pickup">Pickup</NavLink>
               </>
             )}
             {user ? (

@@ -1,6 +1,7 @@
 const db = require('../db');
 const config = require('../config');
 const { HttpError } = require('../utils/http');
+const { priceForPickup } = require('./pickup');
 
 // Single salon-wide key: all booking writes are serialized through this lock.
 // If you add stylists later, lock per stylist instead: pg_advisory_xact_lock(stylist_id).
@@ -28,10 +29,16 @@ const BOOKING_DETAILS_SQL = `
     s.id         AS service_id,
     s.name       AS service_name,
     s.duration_minutes,
-    s.price_cents
+    s.price_cents,
+    a.pickup_hours,
+    a.pickup_price_cents,
+    a.pickup_address,
+    pv.tier AS pickup_tier,
+    pv.name AS pickup_vehicle_name
   FROM appointments a
-  LEFT JOIN users    u ON u.id = a.client_id
-  JOIN      services s ON s.id = a.service_id
+  LEFT JOIN users           u  ON u.id = a.client_id
+  JOIN      services        s  ON s.id = a.service_id
+  LEFT JOIN pickup_vehicles pv ON pv.id = a.pickup_vehicle_id
   WHERE a.id = $1
 `;
 
@@ -106,9 +113,9 @@ async function assertSlotBookable(client, { service, start, excludeId = null }) 
  *  4. INSERT                 -> exclusion constraint is the final DB-level guarantee
  *  5. SELECT with JOINs      -> client + service data for emails
  *  6. COMMIT (or ROLLBACK on any error)
- * `clientId` is null for guest bookings; `contact` is always required.
+ * `clientId` is null for guest bookings; `contact` is always required; `pickup` is the optional car add-on.
  */
-async function createBooking({ clientId, serviceId, startTime, notes, contact }) {
+async function createBooking({ clientId, serviceId, startTime, notes, contact, pickup = null }) {
   const start = parseStart(startTime);
 
   return db.withTransaction(async (client) => {
@@ -125,11 +132,13 @@ async function createBooking({ clientId, serviceId, startTime, notes, contact })
     }
 
     const end = await assertSlotBookable(client, { service, start });
+    const pickupPrice = pickup ? await priceForPickup(client, pickup) : null;
 
     const insertResult = await client.query(
       `INSERT INTO appointments
-         (client_id, service_id, start_time, end_time, status, notes, contact_name, contact_email, contact_phone)
-       VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7, $8)
+         (client_id, service_id, start_time, end_time, status, notes, contact_name, contact_email, contact_phone,
+          pickup_vehicle_id, pickup_hours, pickup_price_cents, pickup_address)
+       VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING id`,
       [
         clientId,
@@ -140,6 +149,10 @@ async function createBooking({ clientId, serviceId, startTime, notes, contact })
         contact.fullName,
         contact.email,
         contact.phone,
+        pickup?.vehicleId ?? null,
+        pickup?.hours ?? null,
+        pickupPrice,
+        pickup?.address ?? null,
       ]
     );
 

@@ -4,7 +4,9 @@ const config = require('../config');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const bookingService = require('../services/bookingService');
 const { sendStatusEmail } = require('../services/email');
+const { sendConfirmationWhatsApp } = require('../services/whatsapp');
 const { getBusinessHours, setBusinessHours } = require('../services/businessHours');
+const { getPickupVehicles, setPickupVehicles } = require('../services/pickup');
 const { HttpError, asyncHandler, parseId } = require('../utils/http');
 
 const router = express.Router();
@@ -41,10 +43,13 @@ router.get(
               COALESCE(a.contact_name, u.full_name) AS client_name,
               COALESCE(a.contact_email, u.email)    AS client_email,
               COALESCE(a.contact_phone, u.phone)    AS client_phone,
-              s.id AS service_id, s.name AS service_name, s.duration_minutes, s.price_cents
+              s.id AS service_id, s.name AS service_name, s.duration_minutes, s.price_cents,
+              a.pickup_hours, a.pickup_price_cents, a.pickup_address,
+              pv.tier AS pickup_tier, pv.name AS pickup_vehicle_name
          FROM appointments a
          LEFT JOIN users u ON u.id = a.client_id
          JOIN services s ON s.id = a.service_id
+         LEFT JOIN pickup_vehicles pv ON pv.id = a.pickup_vehicle_id
         WHERE ${where.join(' AND ')}
         ORDER BY a.start_time ASC`,
       params
@@ -63,16 +68,22 @@ router.patch(
       status: req.body.status,
     });
 
-    // Let the customer know when the salon confirms or cancels. Committed already, so email failure is non-fatal.
+    // Let the customer know when the salon confirms or cancels. Committed already, so send failures are non-fatal.
     let emailSent = false;
+    let whatsappSent = false;
     if (booking.status !== previousStatus) {
-      try {
-        emailSent = await sendStatusEmail(booking);
-      } catch (err) {
-        console.error(`Booking #${booking.id} status saved but email sending failed:`, err.message);
-      }
+      [emailSent, whatsappSent] = await Promise.all([
+        sendStatusEmail(booking).catch((err) => {
+          console.error(`Booking #${booking.id} status saved but email sending failed:`, err.message);
+          return false;
+        }),
+        sendConfirmationWhatsApp(booking).catch((err) => {
+          console.error(`Booking #${booking.id} status saved but WhatsApp sending failed:`, err.message);
+          return false;
+        }),
+      ]);
     }
-    res.json({ booking, emailSent });
+    res.json({ booking, emailSent, whatsappSent });
   })
 );
 
@@ -86,7 +97,8 @@ router.get(
                             AND a.status IN ('pending', 'confirmed'))                      AS today_count,
          COUNT(*) FILTER (WHERE a.start_time >= NOW() AND a.status IN ('pending', 'confirmed')) AS upcoming_count,
          COUNT(*) FILTER (WHERE a.start_time >= NOW() AND a.status = 'pending')                 AS pending_count,
-         COALESCE(SUM(s.price_cents) FILTER (WHERE a.status = 'completed'), 0)            AS revenue_cents,
+         COALESCE(SUM(s.price_cents + COALESCE(a.pickup_price_cents, 0))
+                  FILTER (WHERE a.status = 'completed'), 0)                              AS revenue_cents,
          -- Registered clients plus guests (counted once per email address)
          (SELECT COUNT(*) FROM (
             SELECT LOWER(email) FROM users WHERE role = 'client'
@@ -121,6 +133,22 @@ router.put(
   '/business-hours',
   asyncHandler(async (req, res) => {
     res.json({ hours: await setBusinessHours(req.body.hours) });
+  })
+);
+
+// GET /api/admin/pickup-vehicles  (includes switched-off ones)
+router.get(
+  '/pickup-vehicles',
+  asyncHandler(async (req, res) => {
+    res.json({ vehicles: await getPickupVehicles() });
+  })
+);
+
+// PUT /api/admin/pickup-vehicles  { vehicles: [{ id, name, price6hCents, price12hCents, isActive }, ...] }
+router.put(
+  '/pickup-vehicles',
+  asyncHandler(async (req, res) => {
+    res.json({ vehicles: await setPickupVehicles(req.body.vehicles) });
   })
 );
 

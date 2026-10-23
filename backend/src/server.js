@@ -6,6 +6,11 @@ const { verifyEmailTransport } = require('./services/email');
 const server = app.listen(config.port, () => {
   console.log(`API listening on http://localhost:${config.port}`);
   verifyEmailTransport();
+  console.log(
+    config.whatsapp.enabled
+      ? '✔ WhatsApp confirmations enabled'
+      : '⚠ WhatsApp confirmations off: set WHATSAPP_TOKEN and WHATSAPP_PHONE_NUMBER_ID to enable'
+  );
 });
 
 function shutdown(signal) {

@@ -49,3 +49,10 @@ services:
         sync: false
       - key: CLIENT_ORIGIN
         sync: false
+      # Optional: automatic WhatsApp confirmations (leave blank to skip)
+      - key: WHATSAPP_TOKEN
+        sync: false
+      - key: WHATSAPP_PHONE_NUMBER_ID
+        sync: false
+      - key: WHATSAPP_DEFAULT_COUNTRY_CODE
+        value: "234"

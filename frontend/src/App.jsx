@@ -11,6 +11,7 @@ import MyAppointments from './pages/MyAppointments';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminServices from './pages/AdminServices';
 import AdminHours from './pages/AdminHours';
+import AdminPickup from './pages/AdminPickup';
 import { useApp } from './context/AppContext';
 
 export default function App() {
@@ -59,6 +60,14 @@ export default function App() {
             element={
               <ProtectedRoute adminOnly>
                 <AdminHours />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/pickup"
+            element={
+              <ProtectedRoute adminOnly>
+                <AdminPickup />
               </ProtectedRoute>
             }
           />

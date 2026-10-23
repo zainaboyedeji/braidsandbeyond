@@ -978,3 +978,32 @@ html {
   font-weight: 600;
   padding: 0 6px;
 }
+
+/* ---------- Pickup add-on ---------- */
+.pickup-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px;
+  margin: 8px 0 12px;
+}
+
+.pickup-options .slot {
+  padding: 10px 14px;
+  border-radius: 12px;
+  text-align: left;
+  line-height: 1.35;
+}
+
+.pickup-total {
+  font-weight: 600;
+}
+
+.pickup-toggle {
+  flex-direction: row;
+  align-items: center;
+  margin-top: 12px;
+}
+
+.pickup-toggle input {
+  width: auto;
+}

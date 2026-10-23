@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { useApp } from '../context/AppContext';
-import { formatDateTime, formatPrice } from '../utils/format';
+import { formatDateTime, formatPickup, formatPrice } from '../utils/format';
 
 export default function MyAppointments() {
   const { salon } = useApp();
@@ -69,6 +69,7 @@ export default function MyAppointments() {
                 <div>
                   <strong>{a.service_name}</strong>
                   <div>{formatDateTime(a.start_time, salon.timezone)}</div>
+                  {a.pickup_hours && <div className="small">{formatPickup(a)}</div>}
                   <div className="muted">
                     #{a.id} · {formatPrice(a.price_cents, salon.currency)}{' '}
                     <span className={`badge badge-${a.status}`}>{a.status}</span>

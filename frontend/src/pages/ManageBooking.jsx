@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { useApp } from '../context/AppContext';
-import { addDays, formatDateTime, formatPrice, formatTime, todayInZone } from '../utils/format';
+import { addDays, formatDateTime, formatPickup, formatPrice, formatTime, todayInZone } from '../utils/format';
 
 const BOOKING_WINDOW_DAYS = 60;
 
@@ -115,6 +115,12 @@ export default function ManageBooking() {
           <div>
             <strong>{booking.service_name}</strong>
             <div>{formatDateTime(booking.start_time, salon.timezone)}</div>
+            {booking.pickup_hours && (
+              <div className="small">
+                {formatPickup(booking)} · {formatPrice(booking.pickup_price_cents, salon.currency)}
+                <div className="muted">Pickup from: {booking.pickup_address}</div>
+              </div>
+            )}
             <div className="muted">
               #{booking.id} · {formatPrice(booking.price_cents, salon.currency)} · {booking.client_name}
             </div>

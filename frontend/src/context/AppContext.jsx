@@ -9,6 +9,7 @@ const DEFAULT_SALON = {
   timezone: 'UTC',
   slotIntervalMinutes: 15,
   hours: [],
+  pickupVehicles: [],
 };
 
 export function AppProvider({ children }) {

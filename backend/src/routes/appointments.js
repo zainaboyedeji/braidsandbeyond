@@ -3,6 +3,7 @@ const db = require('../db');
 const { requireAuth, optionalAuth } = require('../middleware/auth');
 const { sendBookingEmails, sendRescheduleEmails, sendCustomerCancelledEmail } = require('../services/email');
 const bookingService = require('../services/bookingService');
+const { parsePickup } = require('../services/pickup');
 const { HttpError, asyncHandler, parseId, parseContact } = require('../utils/http');
 
 const router = express.Router();
@@ -28,7 +29,7 @@ router.get(
   })
 );
 
-// POST /api/appointments  { serviceId, startTime, notes?, contact: { fullName, email, phone } }
+// POST /api/appointments  { serviceId, startTime, notes?, contact: { fullName, email, phone }, pickup?: { vehicleId, hours, address } }
 // Signing in is optional: guests book with just their contact details.
 router.post(
   '/',
@@ -40,6 +41,7 @@ router.post(
       throw new HttpError(400, 'startTime is required');
     }
     const contact = parseContact(req.body.contact || {});
+    const pickup = parsePickup(req.body.pickup);
 
     const booking = await bookingService.createBooking({
       clientId: req.user ? req.user.id : null,
@@ -47,6 +49,7 @@ router.post(
       startTime: req.body.startTime,
       notes,
       contact,
+      pickup,
     });
 
     const emailsSent = await trySend(`Booking #${booking.id}`, () => sendBookingEmails(booking));
@@ -61,9 +64,12 @@ router.get(
   asyncHandler(async (req, res) => {
     const { rows } = await db.query(
       `SELECT a.id, a.start_time, a.end_time, a.status, a.notes, a.created_at, a.manage_token,
-              s.id AS service_id, s.name AS service_name, s.duration_minutes, s.price_cents
+              s.id AS service_id, s.name AS service_name, s.duration_minutes, s.price_cents,
+              a.pickup_hours, a.pickup_price_cents, a.pickup_address,
+              pv.tier AS pickup_tier, pv.name AS pickup_vehicle_name
          FROM appointments a
          JOIN services s ON s.id = a.service_id
+         LEFT JOIN pickup_vehicles pv ON pv.id = a.pickup_vehicle_id
         WHERE a.client_id = $1
         ORDER BY a.start_time DESC`,
       [req.user.id]

@@ -72,6 +72,7 @@ One Render web service builds the React app and serves it from Express alongside
 | Database | Neon (free Postgres) | `DATABASE_URL`, `DATABASE_SSL=true` |
 | Service photos | Cloudinary | `CLOUDINARY_URL` (without it, photos go to `backend/uploads/`, dev only) |
 | Email | Brevo SMTP on port 2525 | `SMTP_*`, `EMAIL_FROM`, `ADMIN_EMAIL` |
+| WhatsApp (optional) | Meta WhatsApp Cloud API | `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_TEMPLATE_NAME` |
 
 Deploy: push to GitHub → Render → **New → Blueprint** → pick the repo → fill in the secret env vars.
 The start command runs `npm run db:init` first; it's idempotent and never deletes data.

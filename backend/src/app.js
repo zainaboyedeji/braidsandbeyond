@@ -9,6 +9,7 @@ const serviceRoutes = require('./routes/services');
 const appointmentRoutes = require('./routes/appointments');
 const adminRoutes = require('./routes/admin');
 const { getBusinessHours } = require('./services/businessHours');
+const { getPickupVehicles } = require('./services/pickup');
 const { asyncHandler } = require('./utils/http');
 const { notFound, errorHandler } = require('./middleware/errorHandler');
 
@@ -32,8 +33,8 @@ app.get(
   '/api/config',
   asyncHandler(async (req, res) => {
     const { name, currency, timezone, slotIntervalMinutes } = config.salon;
-    const hours = await getBusinessHours();
-    res.json({ name, currency, timezone, slotIntervalMinutes, hours });
+    const [hours, pickupVehicles] = await Promise.all([getBusinessHours(), getPickupVehicles({ activeOnly: true })]);
+    res.json({ name, currency, timezone, slotIntervalMinutes, hours, pickupVehicles });
   })
 );
 
