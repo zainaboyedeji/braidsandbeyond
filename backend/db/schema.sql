@@ -178,6 +178,25 @@ CREATE TRIGGER appointments_set_updated_at
   BEFORE UPDATE ON appointments
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
+-- ---------- SERVICE VARIATIONS (e.g. Small / Medium / Large, each with its own price and length) ----------
+-- A service with variations is always booked as one of them; without any, its own price and length are used.
+CREATE TABLE IF NOT EXISTS service_variants (
+  id                SERIAL PRIMARY KEY,
+  service_id        INTEGER      NOT NULL REFERENCES services(id) ON DELETE CASCADE,
+  name              VARCHAR(60)  NOT NULL,
+  duration_minutes  INTEGER      NOT NULL CHECK (duration_minutes > 0 AND duration_minutes <= 480),
+  price_cents       INTEGER      NOT NULL CHECK (price_cents >= 0),
+  position          INTEGER      NOT NULL DEFAULT 0,
+  created_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS service_variants_service_idx ON service_variants (service_id, position);
+
+-- What was booked, frozen at booking time so later price / option changes don't rewrite old bookings.
+-- NULL on older bookings, which fall back to the service's current price.
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS variant_id          INTEGER REFERENCES service_variants(id) ON DELETE SET NULL;
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS variant_name        VARCHAR(60);
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS service_price_cents INTEGER CHECK (service_price_cents >= 0);
+
 -- ---------- DEPOSITS (paid online through Paystack, or by bank transfer, when booking) ----------
 -- deposit_status NULL = no deposit was asked for (booked before deposits existed, or payments switched off).
 -- 'unpaid' Paystack bookings hold their slot only for a short while (PAYMENT_HOLD_MINUTES) before being cancelled;

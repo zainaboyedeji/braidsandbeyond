@@ -22,6 +22,18 @@ const PHOTOS_SQL = `COALESCE(
   '[]'
 ) AS photos`;
 
+// Each service's variations, in order: [{ id, name, duration_minutes, price_cents }]
+const VARIANTS_SQL = `COALESCE(
+  (SELECT json_agg(
+            json_build_object('id', v.id, 'name', v.name, 'duration_minutes', v.duration_minutes,
+                              'price_cents', v.price_cents)
+            ORDER BY v.position, v.id)
+     FROM service_variants v
+    WHERE v.service_id = services.id),
+  '[]'
+) AS variants`;
+const MAX_VARIANTS = 20;
+
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_IMAGE_MB = 5;
 // Gallery photos per service, not counting the cover; also the most that can be uploaded at once
@@ -91,7 +103,8 @@ router.get(
   '/',
   asyncHandler(async (req, res) => {
     const { rows } = await db.query(
-      `SELECT ${SERVICE_FIELDS}, ${PHOTOS_SQL} FROM services WHERE is_active = TRUE ORDER BY name`
+      `SELECT ${SERVICE_FIELDS}, ${PHOTOS_SQL}, ${VARIANTS_SQL}
+         FROM services WHERE is_active = TRUE ORDER BY name`
     );
     res.json({ services: rows });
   })
@@ -104,7 +117,7 @@ router.get(
   requireAdmin,
   asyncHandler(async (req, res) => {
     const { rows } = await db.query(
-      `SELECT ${SERVICE_FIELDS}, ${PHOTOS_SQL} FROM services ORDER BY is_active DESC, name`
+      `SELECT ${SERVICE_FIELDS}, ${PHOTOS_SQL}, ${VARIANTS_SQL} FROM services ORDER BY is_active DESC, name`
     );
     res.json({ services: rows });
   })
@@ -228,6 +241,76 @@ router.delete(
     const { old_image_path: oldPath, ...service } = rows[0];
     removeImage(oldPath);
     res.json({ service });
+  })
+);
+
+// ---------- Variations (e.g. Small / Medium / Large) ----------
+
+// [{ id?, name, durationMinutes, priceCents }] -> validated list; entries without id are new
+function parseVariants(input) {
+  if (!Array.isArray(input)) throw new HttpError(400, 'variants must be a list');
+  if (input.length > MAX_VARIANTS) throw new HttpError(400, `A service can have up to ${MAX_VARIANTS} options`);
+  const seen = new Set();
+  return input.map((v) => {
+    const name = String(v.name || '').trim();
+    if (name.length < 1 || name.length > 60) throw new HttpError(400, 'Each option needs a name (up to 60 characters)');
+    if (seen.has(name.toLowerCase())) throw new HttpError(400, `The option "${name}" is listed twice`);
+    seen.add(name.toLowerCase());
+    const durationMinutes = Number(v.durationMinutes);
+    if (!Number.isInteger(durationMinutes) || durationMinutes <= 0 || durationMinutes > 480) {
+      throw new HttpError(400, `"${name}": duration must be between 1 and 480 minutes`);
+    }
+    const priceCents = Number(v.priceCents);
+    if (!Number.isInteger(priceCents) || priceCents < 0) throw new HttpError(400, `"${name}": enter a valid price`);
+    const id = v.id === undefined || v.id === null ? null : parseId(v.id, 'option id');
+    return { id, name, durationMinutes, priceCents };
+  });
+}
+
+// PUT /api/services/:id/variants  (admin)  { variants: [{ id?, name, durationMinutes, priceCents }] }
+// Replaces the service's whole list: listed ids are updated, new entries added, missing ones removed.
+// Bookings keep the option's name and price they were made with, so removing one doesn't change them.
+router.put(
+  '/:id/variants',
+  requireAuth,
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    const id = parseId(req.params.id);
+    const list = parseVariants(req.body.variants);
+
+    const variants = await db.withTransaction(async (client) => {
+      const svc = await client.query('SELECT 1 FROM services WHERE id = $1 FOR UPDATE', [id]);
+      if (!svc.rows[0]) throw new HttpError(404, 'Service not found');
+
+      const keepIds = list.filter((v) => v.id).map((v) => v.id);
+      await client.query('DELETE FROM service_variants WHERE service_id = $1 AND NOT (id = ANY($2::int[]))', [
+        id,
+        keepIds,
+      ]);
+      for (const [position, v] of list.entries()) {
+        if (v.id) {
+          const updated = await client.query(
+            `UPDATE service_variants SET name = $1, duration_minutes = $2, price_cents = $3, position = $4
+              WHERE id = $5 AND service_id = $6`,
+            [v.name, v.durationMinutes, v.priceCents, position, v.id, id]
+          );
+          if (updated.rowCount === 0) throw new HttpError(400, `Unknown option "${v.name}"`);
+        } else {
+          await client.query(
+            `INSERT INTO service_variants (service_id, name, duration_minutes, price_cents, position)
+             VALUES ($1, $2, $3, $4, $5)`,
+            [id, v.name, v.durationMinutes, v.priceCents, position]
+          );
+        }
+      }
+      const { rows } = await client.query(
+        `SELECT id, name, duration_minutes, price_cents FROM service_variants
+          WHERE service_id = $1 ORDER BY position, id`,
+        [id]
+      );
+      return rows;
+    });
+    res.json({ variants });
   })
 );
 

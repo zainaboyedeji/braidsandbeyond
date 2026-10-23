@@ -11,6 +11,15 @@ const ACTIVE_STATUSES = `('pending', 'confirmed')`;
 
 const MANAGE_TOKEN_RE = /^[0-9a-f]{64}$/;
 
+// The service as booked: "Knotless Braids · Large", with the price and length it was booked at.
+// Shared by every query that lists bookings (needs `appointments a` and `services s`).
+const BOOKED_SERVICE_SQL = `
+    s.id AS service_id,
+    s.name || COALESCE(' · ' || a.variant_name, '') AS service_name,
+    a.variant_name,
+    (EXTRACT(EPOCH FROM a.end_time - a.start_time) / 60)::int AS duration_minutes,
+    COALESCE(a.service_price_cents, s.price_cents) AS price_cents`;
+
 // One query that returns everything both email templates need.
 // LEFT JOIN: guest bookings have no users row, so contact_* is the only source for them.
 const BOOKING_DETAILS_SQL = `
@@ -26,10 +35,7 @@ const BOOKING_DETAILS_SQL = `
     COALESCE(a.contact_name, u.full_name)  AS client_name,
     COALESCE(a.contact_email, u.email)     AS client_email,
     COALESCE(a.contact_phone, u.phone)     AS client_phone,
-    s.id         AS service_id,
-    s.name       AS service_name,
-    s.duration_minutes,
-    s.price_cents,
+    ${BOOKED_SERVICE_SQL},
     a.pickup_hours,
     a.pickup_price_cents,
     a.pickup_address,
@@ -84,6 +90,35 @@ function refundForCancellation(appt, { byClient }) {
   return Math.round((appt.deposit_cents * config.payments.lateCancelRefundPercent) / 100);
 }
 
+/**
+ * The service being booked and, if it has variations, the chosen one, with the price and length to book.
+ * A service with variations must be booked as one of them. `lock` keeps them from changing mid-booking.
+ */
+async function bookableOption(client, { serviceId, variantId = null, lock = false }) {
+  const forShare = lock ? 'FOR SHARE' : '';
+  const serviceResult = await client.query(
+    `SELECT id, duration_minutes, price_cents, is_active FROM services WHERE id = $1 ${forShare}`,
+    [serviceId]
+  );
+  const service = serviceResult.rows[0];
+  if (!service || !service.is_active) {
+    throw new HttpError(404, 'Service not found or no longer offered');
+  }
+
+  const variants = await client.query(
+    `SELECT id, name, duration_minutes, price_cents FROM service_variants WHERE service_id = $1 ${forShare}`,
+    [serviceId]
+  );
+  if (variants.rows.length === 0) {
+    return { service, variant: null, durationMinutes: service.duration_minutes, priceCents: service.price_cents };
+  }
+  const variant = variants.rows.find((v) => v.id === variantId);
+  if (!variant) {
+    throw new HttpError(400, variantId ? 'That option is not available for this service' : 'Please choose an option');
+  }
+  return { service, variant, durationMinutes: variant.duration_minutes, priceCents: variant.price_cents };
+}
+
 function parseStart(startTime) {
   const start = new Date(startTime);
   if (!startTime || Number.isNaN(start.getTime())) {
@@ -93,13 +128,13 @@ function parseStart(startTime) {
 }
 
 /**
- * Checks that [start, start + service duration) is a bookable, free slot and returns its end.
+ * Checks that [start, start + durationMinutes) is a bookable, free slot and returns its end.
  * Must run inside a transaction that already holds BOOKING_LOCK_KEY.
  * `excludeId` skips that appointment in the overlap check (used when rescheduling it).
  */
-async function assertSlotBookable(client, { service, start, excludeId = null }) {
+async function assertSlotBookable(client, { durationMinutes, start, excludeId = null }) {
   await releaseExpiredHolds(client);
-  const end = new Date(start.getTime() + service.duration_minutes * 60 * 1000);
+  const end = new Date(start.getTime() + durationMinutes * 60 * 1000);
 
   // Validate against that weekday's business hours in the salon's local timezone.
   // The slot grid is anchored at opening time, so 09:30 opening with 60-min slots gives 09:30, 10:30, …
@@ -157,34 +192,37 @@ async function assertSlotBookable(client, { service, start, excludeId = null }) 
  *  5. SELECT with JOINs      -> client + service data for emails
  *  6. COMMIT (or ROLLBACK on any error)
  * `clientId` is null for guest bookings; `contact` is always required; `pickup` is the optional car add-on;
- * `paymentMethod` ('paystack' | 'transfer') is how the deposit will be paid, when deposits are on.
+ * `paymentMethod` ('paystack' | 'transfer') is how the deposit will be paid, when deposits are on;
+ * `variantId` is the chosen variation, required for services that have them.
  */
-async function createBooking({ clientId, serviceId, startTime, notes, contact, pickup = null, paymentMethod = null }) {
+async function createBooking({
+  clientId,
+  serviceId,
+  variantId = null,
+  startTime,
+  notes,
+  contact,
+  pickup = null,
+  paymentMethod = null,
+}) {
   const start = parseStart(startTime);
 
   return db.withTransaction(async (client) => {
     await client.query('SELECT pg_advisory_xact_lock($1)', [BOOKING_LOCK_KEY]);
 
-    // FOR SHARE: the service can't be deactivated/changed mid-booking
-    const serviceResult = await client.query(
-      `SELECT id, duration_minutes, price_cents, is_active FROM services WHERE id = $1 FOR SHARE`,
-      [serviceId]
-    );
-    const service = serviceResult.rows[0];
-    if (!service || !service.is_active) {
-      throw new HttpError(404, 'Service not found or no longer offered');
-    }
+    // Locked: the service and its options can't be deactivated/changed mid-booking
+    const option = await bookableOption(client, { serviceId, variantId, lock: true });
 
-    const end = await assertSlotBookable(client, { service, start });
+    const end = await assertSlotBookable(client, { durationMinutes: option.durationMinutes, start });
     const pickupPrice = pickup ? await priceForPickup(client, pickup) : null;
-    const depositCents = depositFor(service.price_cents + (pickupPrice || 0));
+    const depositCents = depositFor(option.priceCents + (pickupPrice || 0));
 
     const insertResult = await client.query(
       `INSERT INTO appointments
          (client_id, service_id, start_time, end_time, status, notes, contact_name, contact_email, contact_phone,
           pickup_vehicle_id, pickup_hours, pickup_price_cents, pickup_address, deposit_cents, deposit_status,
-          payment_method)
-       VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+          payment_method, variant_id, variant_name, service_price_cents)
+       VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
        RETURNING id`,
       [
         clientId,
@@ -202,6 +240,9 @@ async function createBooking({ clientId, serviceId, startTime, notes, contact, p
         depositCents,
         depositCents ? 'unpaid' : null,
         depositCents ? paymentMethod : null,
+        option.variant?.id ?? null,
+        option.variant?.name ?? null,
+        option.priceCents,
       ]
     );
 
@@ -219,21 +260,16 @@ async function createBooking({ clientId, serviceId, startTime, notes, contact, p
  * Returns open start times for a service on a given salon-local date (YYYY-MM-DD).
  * Read-only: the authoritative check happens again inside createBooking / rescheduleBooking.
  * `excludeId` treats that appointment's own slot as free (so a reschedule can see it).
+ * The slot length is the chosen variation's (or the service's), unless `durationMinutes` is given
+ * (rescheduling keeps the length the booking already has).
  */
-async function getAvailability({ serviceId, date, excludeId = null }) {
+async function getAvailability({ serviceId, variantId = null, date, excludeId = null, durationMinutes = null }) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '')) {
     throw new HttpError(400, 'date must be in YYYY-MM-DD format');
   }
 
   await releaseExpiredHolds(db);
-  const serviceResult = await db.query(
-    'SELECT id, duration_minutes FROM services WHERE id = $1 AND is_active = TRUE',
-    [serviceId]
-  );
-  const service = serviceResult.rows[0];
-  if (!service) {
-    throw new HttpError(404, 'Service not found');
-  }
+  const minutes = durationMinutes ?? (await bookableOption(db, { serviceId, variantId })).durationMinutes;
 
   const { rows } = await db.query(
     `WITH bounds AS (
@@ -258,13 +294,13 @@ async function getAvailability({ serviceId, date, excludeId = null }) {
              AND tstzrange(a.start_time, a.end_time, '[)') && tstzrange(s.start_time, s.end_time, '[)')
         )
       ORDER BY s.start_time`,
-    [date, config.salon.timezone, service.duration_minutes, config.salon.slotIntervalMinutes, excludeId]
+    [date, config.salon.timezone, minutes, config.salon.slotIntervalMinutes, excludeId]
   );
 
   return {
     date,
-    serviceId: service.id,
-    durationMinutes: service.duration_minutes,
+    serviceId,
+    durationMinutes: minutes,
     timezone: config.salon.timezone,
     slots: rows,
   };
@@ -361,16 +397,16 @@ async function rescheduleBooking({ token, startTime }) {
       throw new HttpError(400, 'Pick a different time from your current booking');
     }
 
-    const serviceResult = await client.query(
-      `SELECT id, duration_minutes, is_active FROM services WHERE id = $1 FOR SHARE`,
-      [appt.service_id]
-    );
-    const service = serviceResult.rows[0];
-    if (!service || !service.is_active) {
+    const serviceResult = await client.query(`SELECT is_active FROM services WHERE id = $1 FOR SHARE`, [
+      appt.service_id,
+    ]);
+    if (!serviceResult.rows[0]?.is_active) {
       throw new HttpError(400, 'This service is no longer offered. Please cancel and book a different one.');
     }
 
-    const end = await assertSlotBookable(client, { service, start, excludeId: appt.id });
+    // The booking keeps its length (and so its variation) when moved
+    const durationMinutes = (new Date(appt.end_time) - new Date(appt.start_time)) / 60000;
+    const end = await assertSlotBookable(client, { durationMinutes, start, excludeId: appt.id });
 
     await client.query(
       `UPDATE appointments SET start_time = $1, end_time = $2, status = 'pending' WHERE id = $3`,
@@ -484,6 +520,7 @@ async function recordDepositAction({ appointmentId, action }) {
 }
 
 module.exports = {
+  BOOKED_SERVICE_SQL,
   BOOKING_DETAILS_SQL,
   recordDepositAction,
   releaseExpiredHolds,

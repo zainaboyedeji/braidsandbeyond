@@ -45,7 +45,7 @@ router.get(
               COALESCE(a.contact_name, u.full_name) AS client_name,
               COALESCE(a.contact_email, u.email)    AS client_email,
               COALESCE(a.contact_phone, u.phone)    AS client_phone,
-              s.id AS service_id, s.name AS service_name, s.duration_minutes, s.price_cents,
+              ${bookingService.BOOKED_SERVICE_SQL},
               a.pickup_hours, a.pickup_price_cents, a.pickup_address,
               pv.tier AS pickup_tier, pv.name AS pickup_vehicle_name,
               a.deposit_cents, a.deposit_status, a.payment_method, a.refund_cents
@@ -126,7 +126,7 @@ router.get(
                             AND a.status IN ('pending', 'confirmed'))                      AS today_count,
          COUNT(*) FILTER (WHERE a.start_time >= NOW() AND a.status IN ('pending', 'confirmed')) AS upcoming_count,
          COUNT(*) FILTER (WHERE a.start_time >= NOW() AND a.status = 'pending')                 AS pending_count,
-         COALESCE(SUM(s.price_cents + COALESCE(a.pickup_price_cents, 0))
+         COALESCE(SUM(COALESCE(a.service_price_cents, s.price_cents) + COALESCE(a.pickup_price_cents, 0))
                   FILTER (WHERE a.status = 'completed'), 0)                              AS revenue_cents,
          -- Registered clients plus guests (counted once per email address)
          (SELECT COUNT(*) FROM (

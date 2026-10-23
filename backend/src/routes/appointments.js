@@ -21,17 +21,19 @@ async function trySend(label, send) {
   }
 }
 
-// GET /api/appointments/availability?serviceId=1&date=2026-10-20  (public)
+// GET /api/appointments/availability?serviceId=1&variantId=3&date=2026-10-20  (public)
+// variantId is required for services that have variations
 router.get(
   '/availability',
   asyncHandler(async (req, res) => {
     const serviceId = parseId(req.query.serviceId, 'serviceId');
-    const result = await bookingService.getAvailability({ serviceId, date: req.query.date });
+    const variantId = req.query.variantId ? parseId(req.query.variantId, 'variantId') : null;
+    const result = await bookingService.getAvailability({ serviceId, variantId, date: req.query.date });
     res.json(result);
   })
 );
 
-// POST /api/appointments  { serviceId, startTime, notes?, contact: { fullName, email, phone },
+// POST /api/appointments  { serviceId, variantId?, startTime, notes?, contact: { fullName, email, phone },
 //                          pickup?: { vehicleId, hours, address }, paymentMethod?: 'paystack' | 'transfer' }
 // Signing in is optional: guests book with just their contact details.
 router.post(
@@ -39,6 +41,7 @@ router.post(
   optionalAuth,
   asyncHandler(async (req, res) => {
     const serviceId = parseId(req.body.serviceId, 'serviceId');
+    const variantId = req.body.variantId ? parseId(req.body.variantId, 'variantId') : null;
     const notes = req.body.notes ? String(req.body.notes).trim().slice(0, 500) : null;
     if (!req.body.startTime) {
       throw new HttpError(400, 'startTime is required');
@@ -54,6 +57,7 @@ router.post(
     const booking = await bookingService.createBooking({
       clientId: req.user ? req.user.id : null,
       serviceId,
+      variantId,
       startTime: req.body.startTime,
       notes,
       contact,
@@ -87,7 +91,7 @@ router.get(
   asyncHandler(async (req, res) => {
     const { rows } = await db.query(
       `SELECT a.id, a.start_time, a.end_time, a.status, a.notes, a.created_at, a.manage_token,
-              s.id AS service_id, s.name AS service_name, s.duration_minutes, s.price_cents,
+              ${bookingService.BOOKED_SERVICE_SQL},
               a.pickup_hours, a.pickup_price_cents, a.pickup_address,
               pv.tier AS pickup_tier, pv.name AS pickup_vehicle_name,
               a.deposit_cents, a.deposit_status, a.payment_method, a.refund_cents
@@ -142,6 +146,7 @@ router.get(
       serviceId: booking.service_id,
       date: req.query.date,
       excludeId: booking.id,
+      durationMinutes: booking.duration_minutes,
     });
     res.json(result);
   })

@@ -11,6 +11,7 @@ const adminRoutes = require('./routes/admin');
 const paymentRoutes = require('./routes/payments');
 const { getBusinessHours } = require('./services/businessHours');
 const { getPickupVehicles } = require('./services/pickup');
+const { toWhatsAppNumber } = require('./services/whatsapp');
 const { asyncHandler } = require('./utils/http');
 const { notFound, errorHandler } = require('./middleware/errorHandler');
 
@@ -41,7 +42,8 @@ app.get('/api/health', async (req, res) => {
 app.get(
   '/api/config',
   asyncHandler(async (req, res) => {
-    const { name, currency, timezone, slotIntervalMinutes } = config.salon;
+    const { name, phone, currency, timezone, slotIntervalMinutes } = config.salon;
+    const whatsappNumber = phone ? toWhatsAppNumber(phone) : null;
     const { enabled, methods, banks, depositPercent, holdMinutes, freeCancellationHours, lateCancelRefundPercent } =
       config.payments;
     const deposits = {
@@ -55,7 +57,7 @@ app.get(
       lateCancelRefundPercent,
     };
     const [hours, pickupVehicles] = await Promise.all([getBusinessHours(), getPickupVehicles({ activeOnly: true })]);
-    res.json({ name, currency, timezone, slotIntervalMinutes, hours, pickupVehicles, deposits });
+    res.json({ name, phone, whatsappNumber, currency, timezone, slotIntervalMinutes, hours, pickupVehicles, deposits });
   })
 );
 

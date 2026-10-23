@@ -73,6 +73,8 @@ const config = {
 
   salon: {
     name: process.env.SALON_NAME || 'Our Salon',
+    // Shown on the Policies page so clients can call or text (e.g. when running late)
+    phone: process.env.SALON_PHONE || null,
     currency: (process.env.SALON_CURRENCY || 'USD').toUpperCase(),
     timezone,
     slotIntervalMinutes: toInt('SLOT_INTERVAL_MINUTES', 15, { min: 5, max: 120 }),
