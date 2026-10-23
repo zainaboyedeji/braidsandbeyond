@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { api, assetUrl } from '../api/client';
+import PhotoGallery, { servicePhotoPaths } from '../components/PhotoGallery';
 import TransferDetails from '../components/TransferDetails';
 import { useApp } from '../context/AppContext';
 import {
@@ -43,6 +44,7 @@ export default function Book() {
   const [confirmation, setConfirmation] = useState(null);
   const [contact, setContact] = useState({ fullName: '', email: '', phone: '' });
   const [pickup, setPickup] = useState(NO_PICKUP);
+  const [galleryIndex, setGalleryIndex] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState(salon.deposits.methods?.[0] || null);
 
   // Pre-fill contact details from the account; the customer can still edit them for this booking
@@ -219,7 +221,14 @@ export default function Book() {
         {selectedService && (
           <div className="book-service">
             {selectedService.image_path && (
-              <img src={assetUrl(selectedService.image_path)} alt={selectedService.name} />
+              <button
+                type="button"
+                className="book-service-photo"
+                onClick={() => setGalleryIndex(0)}
+                aria-label={`See photos of ${selectedService.name}`}
+              >
+                <img src={assetUrl(selectedService.image_path)} alt={selectedService.name} />
+              </button>
             )}
             <div>
               <strong>{selectedService.name}</strong>
@@ -228,8 +237,32 @@ export default function Book() {
                 {formatDuration(selectedService.duration_minutes)} ·{' '}
                 {formatPrice(selectedService.price_cents, salon.currency)}
               </div>
+              {selectedService.photos?.length > 0 && (
+                <div className="photo-strip">
+                  {servicePhotoPaths(selectedService)
+                    .slice(1)
+                    .map((path, i) => (
+                      <button
+                        type="button"
+                        key={path}
+                        onClick={() => setGalleryIndex(i + 1)}
+                        aria-label={`Photo ${i + 2}`}
+                      >
+                        <img src={assetUrl(path)} alt="" loading="lazy" />
+                      </button>
+                    ))}
+                </div>
+              )}
             </div>
           </div>
+        )}
+        {selectedService && galleryIndex !== null && (
+          <PhotoGallery
+            title={selectedService.name}
+            paths={servicePhotoPaths(selectedService)}
+            startIndex={galleryIndex}
+            onClose={() => setGalleryIndex(null)}
+          />
         )}
 
         {serviceId && (

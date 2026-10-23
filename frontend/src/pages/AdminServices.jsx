@@ -5,6 +5,8 @@ import { formatDuration, formatPrice } from '../utils/format';
 
 const EMPTY_FORM = { name: '', description: '', durationMinutes: 30, price: '' };
 const MAX_IMAGE_MB = 5;
+const MAX_GALLERY_PHOTOS = 12;
+const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 export default function AdminServices() {
   const { salon } = useApp();
@@ -16,6 +18,8 @@ export default function AdminServices() {
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [currentImage, setCurrentImage] = useState(null);
+  const [photos, setPhotos] = useState([]);
+  const [photoBusy, setPhotoBusy] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [formError, setFormError] = useState('');
   const fileInput = useRef(null);
@@ -52,7 +56,7 @@ export default function AdminServices() {
   function chooseImage(e) {
     const file = e.target.files[0];
     if (!file) return;
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+    if (!IMAGE_TYPES.includes(file.type)) {
       setFormError('Image must be a JPG, PNG or WebP file');
       e.target.value = '';
       return;
@@ -84,9 +88,70 @@ export default function AdminServices() {
     }
   }
 
+  async function addPhotos(e) {
+    const files = [...e.target.files];
+    e.target.value = '';
+    if (files.length === 0) return;
+    if (files.some((f) => !IMAGE_TYPES.includes(f.type))) {
+      setFormError('Photos must be JPG, PNG or WebP files');
+      return;
+    }
+    if (files.some((f) => f.size > MAX_IMAGE_MB * 1024 * 1024)) {
+      setFormError(`Each photo must be under ${MAX_IMAGE_MB} MB`);
+      return;
+    }
+    if (photos.length + files.length > MAX_GALLERY_PHOTOS) {
+      setFormError(`A service can have up to ${MAX_GALLERY_PHOTOS} gallery photos (it has ${photos.length}).`);
+      return;
+    }
+    const formData = new FormData();
+    files.forEach((f) => formData.append('photos', f));
+    setFormError('');
+    setPhotoBusy(true);
+    try {
+      const data = await api.upload(`/services/${editingId}/photos`, formData);
+      setPhotos(data.photos);
+      await load();
+    } catch (err) {
+      setFormError(err.message);
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
+
+  async function removePhoto(photo) {
+    setFormError('');
+    setPhotoBusy(true);
+    try {
+      const data = await api.del(`/services/${editingId}/photos/${photo.id}`);
+      setPhotos(data.photos);
+      await load();
+    } catch (err) {
+      setFormError(err.message);
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
+
+  async function makeCover(photo) {
+    setFormError('');
+    setPhotoBusy(true);
+    try {
+      const data = await api.post(`/services/${editingId}/photos/${photo.id}/cover`);
+      setPhotos(data.photos);
+      setCurrentImage(data.service.image_path);
+      await load();
+    } catch (err) {
+      setFormError(err.message);
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
+
   function startEdit(service) {
     setEditingId(service.id);
     setCurrentImage(service.image_path);
+    setPhotos(service.photos || []);
     clearChosenImage();
     setForm({
       name: service.name,
@@ -107,6 +172,7 @@ export default function AdminServices() {
     setEditingId(null);
     setForm(EMPTY_FORM);
     setCurrentImage(null);
+    setPhotos([]);
     setFormError('');
     clearChosenImage();
   }
@@ -228,7 +294,7 @@ export default function AdminServices() {
             )}
             <div className="form">
               <label>
-                Photo <span className="muted">(JPG, PNG or WebP, up to {MAX_IMAGE_MB} MB)</span>
+                Cover photo <span className="muted">(JPG, PNG or WebP, up to {MAX_IMAGE_MB} MB)</span>
                 <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" onChange={chooseImage} />
               </label>
               <div className="actions">
@@ -245,6 +311,53 @@ export default function AdminServices() {
               </div>
             </div>
           </div>
+          <fieldset className="gallery-field">
+            <legend>
+              Gallery <span className="muted">({photos.length} of {MAX_GALLERY_PHOTOS} photos)</span>
+            </legend>
+            {editingId ? (
+              <>
+                {photos.length > 0 && (
+                  <div className="gallery-admin">
+                    {photos.map((p) => (
+                      <figure key={p.id}>
+                        <img src={assetUrl(p.image_path)} alt="" />
+                        <figcaption>
+                          <button type="button" onClick={() => makeCover(p)} disabled={photoBusy}>
+                            Make cover
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removePhoto(p)}
+                            disabled={photoBusy}
+                            aria-label="Remove photo"
+                          >
+                            Remove
+                          </button>
+                        </figcaption>
+                      </figure>
+                    ))}
+                  </div>
+                )}
+                {photos.length < MAX_GALLERY_PHOTOS && (
+                  <label className="btn btn-outline btn-sm gallery-add">
+                    {photoBusy ? 'Uploading…' : '+ Add photos'}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      multiple
+                      onChange={addPhotos}
+                      disabled={photoBusy}
+                      hidden
+                    />
+                  </label>
+                )}
+                <p className="muted small">Clients see these after the cover when they tap the service's photo.</p>
+              </>
+            ) : (
+              <p className="muted small">Save the service first, then edit it to add gallery photos.</p>
+            )}
+          </fieldset>
           <div className="actions">
             <button type="submit" className="btn btn-primary" disabled={saving}>
               {saving ? 'Saving…' : editingId ? 'Save changes' : 'Add service'}
@@ -259,11 +372,14 @@ export default function AdminServices() {
       <div className="list">
         {services.map((s) => (
           <div key={s.id} className={`card list-item ${s.is_active ? '' : 'list-item-muted'}`}>
-            {s.image_path ? (
-              <img className="service-thumb" src={assetUrl(s.image_path)} alt="" />
-            ) : (
-              <div className="service-thumb service-thumb-empty">No photo</div>
-            )}
+            <div className="service-thumb-wrap">
+              {s.image_path ? (
+                <img className="service-thumb" src={assetUrl(s.image_path)} alt="" />
+              ) : (
+                <div className="service-thumb service-thumb-empty">No photo</div>
+              )}
+              {s.photos?.length > 0 && <span className="photo-count">+{s.photos.length}</span>}
+            </div>
             <div className="list-item-body">
               <strong>{s.name}</strong> {!s.is_active && <span className="badge badge-cancelled">hidden</span>}
               <div className="muted">

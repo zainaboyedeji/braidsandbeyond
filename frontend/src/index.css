@@ -1089,3 +1089,272 @@ html {
   gap: 8px;
   text-align: right;
 }
+
+/* ---------- Password show / hide ---------- */
+.password-input {
+  position: relative;
+}
+
+.password-input input {
+  padding-right: 44px;
+}
+
+.password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  display: flex;
+  padding: 6px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.password-toggle:hover {
+  color: var(--text);
+}
+
+.password-toggle:focus-visible {
+  outline: 3px solid var(--pink-soft);
+}
+
+/* ---------- Service photo gallery ---------- */
+.service-image-button {
+  position: relative;
+  display: block;
+  width: calc(100% + 40px);
+  margin: -20px -20px 4px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: zoom-in;
+}
+
+.service-image-button .service-image {
+  width: 100%;
+  margin: 0;
+}
+
+.photo-count {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(20, 20, 20, 0.7);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.book-service-photo {
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: zoom-in;
+  flex-shrink: 0;
+}
+
+.photo-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.photo-strip button {
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: zoom-in;
+}
+
+.book-service .photo-strip img {
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+}
+
+.gallery {
+  width: 100vw;
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 16px;
+  border: none;
+  background: rgba(10, 10, 10, 0.94);
+  color: #fff;
+}
+
+.gallery[open] {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.gallery::backdrop {
+  background: rgba(10, 10, 10, 0.94);
+}
+
+.gallery-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+}
+
+.gallery-count {
+  font-weight: 400;
+  opacity: 0.75;
+}
+
+.gallery-close,
+.gallery-nav {
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.gallery-close {
+  width: 40px;
+  height: 40px;
+  font-size: 1.6rem;
+}
+
+.gallery-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gallery-stage img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 8px;
+}
+
+.gallery-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 44px;
+  height: 44px;
+  font-size: 2rem;
+}
+
+.gallery-prev {
+  left: 4px;
+}
+
+.gallery-next {
+  right: 4px;
+}
+
+.gallery-close:hover,
+.gallery-nav:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.gallery-thumbs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  justify-content: center;
+}
+
+.gallery-thumbs button {
+  flex-shrink: 0;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: none;
+  opacity: 0.6;
+  cursor: pointer;
+}
+
+.gallery-thumbs button.active {
+  border-color: var(--pink);
+  opacity: 1;
+}
+
+.gallery-thumbs img {
+  display: block;
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: 6px;
+}
+
+/* Admin: gallery inside the service form */
+.gallery-field {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin: 0;
+}
+
+.gallery-admin {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.gallery-admin figure {
+  margin: 0;
+}
+
+.gallery-admin img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 8px;
+  display: block;
+}
+
+.gallery-admin figcaption {
+  display: flex;
+  justify-content: space-between;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.gallery-admin figcaption button {
+  padding: 2px 4px;
+  border: none;
+  background: none;
+  color: var(--pink-deep);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.gallery-admin figcaption button:last-child {
+  color: var(--danger);
+}
+
+.gallery-add {
+  cursor: pointer;
+}
+
+.service-thumb-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.service-thumb-wrap .photo-count {
+  right: 4px;
+  bottom: 4px;
+  padding: 1px 7px;
+}

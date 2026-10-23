@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, assetUrl } from '../api/client';
+import PhotoGallery, { servicePhotoPaths } from '../components/PhotoGallery';
 import { useApp } from '../context/AppContext';
 import { WEEKDAYS, formatClock, formatDuration, formatPrice } from '../utils/format';
 
@@ -12,6 +13,7 @@ export default function Home() {
   const [services, setServices] = useState([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [gallery, setGallery] = useState(null);
 
   useEffect(() => {
     api
@@ -56,7 +58,17 @@ export default function Home() {
           {services.map((service) => (
             <article key={service.id} className="card service-card">
               {service.image_path ? (
-                <img className="service-image" src={assetUrl(service.image_path)} alt={service.name} loading="lazy" />
+                <button
+                  type="button"
+                  className="service-image-button"
+                  onClick={() => setGallery(service)}
+                  aria-label={`See photos of ${service.name}`}
+                >
+                  <img className="service-image" src={assetUrl(service.image_path)} alt={service.name} loading="lazy" />
+                  {service.photos?.length > 0 && (
+                    <span className="photo-count">+{service.photos.length} photos</span>
+                  )}
+                </button>
               ) : (
                 <div className="service-image-placeholder" aria-hidden="true">
                   {service.name.charAt(0)}
@@ -74,6 +86,10 @@ export default function Home() {
             </article>
           ))}
         </div>
+      )}
+
+      {gallery && (
+        <PhotoGallery title={gallery.name} paths={servicePhotoPaths(gallery)} onClose={() => setGallery(null)} />
       )}
 
       {salon.hours.length > 0 && (

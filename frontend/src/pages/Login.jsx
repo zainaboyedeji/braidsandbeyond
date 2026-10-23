@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import PasswordInput from '../components/PasswordInput';
 import { useApp } from '../context/AppContext';
 
 export default function Login() {
@@ -41,7 +42,12 @@ export default function Login() {
         </label>
         <label>
           Password
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+          <PasswordInput
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
+            required
+          />
         </label>
         <Link to="/forgot-password" className="small form-link">
           Forgot password?

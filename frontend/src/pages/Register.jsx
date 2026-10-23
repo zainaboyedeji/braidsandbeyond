@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import PasswordInput from '../components/PasswordInput';
 import { useApp } from '../context/AppContext';
 
 export default function Register() {
@@ -72,7 +73,13 @@ export default function Register() {
         </label>
         <label>
           Password <span className="muted">(min 8 characters)</span>
-          <input type="password" value={form.password} onChange={update('password')} required minLength={8} />
+          <PasswordInput
+            value={form.password}
+            onChange={update('password')}
+            autoComplete="new-password"
+            required
+            minLength={8}
+          />
         </label>
         <button type="submit" className="btn btn-primary" disabled={submitting}>
           {submitting ? 'Creating account…' : 'Sign up'}

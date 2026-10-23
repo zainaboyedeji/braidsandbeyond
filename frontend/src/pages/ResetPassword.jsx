@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import PasswordInput from '../components/PasswordInput';
 import { useApp } from '../context/AppContext';
 
 export default function ResetPassword() {
@@ -40,8 +41,7 @@ export default function ResetPassword() {
       <form onSubmit={handleSubmit} className="form">
         <label>
           New password
-          <input
-            type="password"
+          <PasswordInput
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             minLength={8}
@@ -52,8 +52,7 @@ export default function ResetPassword() {
         </label>
         <label>
           Confirm new password
-          <input
-            type="password"
+          <PasswordInput
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
             minLength={8}
