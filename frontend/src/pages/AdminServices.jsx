@@ -201,17 +201,6 @@ export default function AdminServices() {
   async function handleSubmit(e) {
     e.preventDefault();
     setFormError('');
-    const priceCents = Math.round(Number(form.price) * 100);
-    if (!Number.isFinite(priceCents) || priceCents < 0) {
-      setFormError('Enter a valid price');
-      return;
-    }
-    const payload = {
-      name: form.name,
-      description: form.description,
-      durationMinutes: Number(form.durationMinutes),
-      priceCents,
-    };
     const variants = variantRows.map((row) => ({
       id: row.id ?? undefined,
       name: row.name,
@@ -223,6 +212,21 @@ export default function AdminServices() {
       setFormError(`Enter a valid price for "${badVariant.name || 'each option'}"`);
       return;
     }
+    // With options, the service's own length and price fields are hidden: store its shortest
+    // length and lowest price so it still has sensible values
+    const priceCents =
+      variants.length > 0 ? Math.min(...variants.map((v) => v.priceCents)) : Math.round(Number(form.price) * 100);
+    if (!Number.isFinite(priceCents) || priceCents < 0) {
+      setFormError('Enter a valid price');
+      return;
+    }
+    const payload = {
+      name: form.name,
+      description: form.description,
+      durationMinutes:
+        variants.length > 0 ? Math.min(...variants.map((v) => v.durationMinutes)) : Number(form.durationMinutes),
+      priceCents,
+    };
 
     setSaving(true);
     try {
@@ -306,22 +310,27 @@ export default function AdminServices() {
               Name
               <input value={form.name} onChange={update('name')} required minLength={2} />
             </label>
-            <label>
-              Duration (minutes)
-              <input
-                type="number"
-                min={5}
-                max={480}
-                step={5}
-                value={form.durationMinutes}
-                onChange={update('durationMinutes')}
-                required
-              />
-            </label>
-            <label>
-              Price ({salon.currency})
-              <input type="number" min={0} step="0.01" value={form.price} onChange={update('price')} required />
-            </label>
+            {/* A service with options takes its length and price from each option instead */}
+            {variantRows.length === 0 && (
+              <>
+                <label>
+                  Duration (minutes)
+                  <input
+                    type="number"
+                    min={5}
+                    max={480}
+                    step={5}
+                    value={form.durationMinutes}
+                    onChange={update('durationMinutes')}
+                    required
+                  />
+                </label>
+                <label>
+                  Price ({salon.currency})
+                  <input type="number" min={0} step="0.01" value={form.price} onChange={update('price')} required />
+                </label>
+              </>
+            )}
           </div>
           <label>
             Description
@@ -389,9 +398,8 @@ export default function AdminServices() {
             </button>
             <p className="muted small">
               {variantRows.length > 0
-                ? 'Clients choose one of these when booking, each with its own length and price ' +
-                  '(the duration and price above are then not used).'
-                : 'Leave empty if this service only comes one way.'}
+                ? 'Clients choose one of these when booking, each with its own length and price.'
+                : 'Leave empty if this service only comes one way. Adding options replaces the duration and price above.'}
             </p>
           </fieldset>
           <div className="image-field">
