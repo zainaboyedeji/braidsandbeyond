@@ -73,10 +73,11 @@ const config = {
 
   salon: {
     name: process.env.SALON_NAME || 'Our Salon',
-    // Contact details shown in the footer and on the Contact and Policies pages
-    phone: process.env.SALON_PHONE || null,
-    address: process.env.SALON_ADDRESS || null,
-    email: process.env.SALON_EMAIL || null,
+    // Contact details shown in the footer and on the Contact and Policies pages.
+    // Defaults are the salon's own; set the env vars to change them.
+    phone: process.env.SALON_PHONE || '0816 259 8682',
+    address: process.env.SALON_ADDRESS || '112 Herbert Macaulay Way, Ebute Metta East, Lagos',
+    email: process.env.SALON_EMAIL || 'braidsandbeyond@beautybayafrica.com',
     currency: (process.env.SALON_CURRENCY || 'USD').toUpperCase(),
     timezone,
     slotIntervalMinutes: toInt('SLOT_INTERVAL_MINUTES', 15, { min: 5, max: 120 }),
