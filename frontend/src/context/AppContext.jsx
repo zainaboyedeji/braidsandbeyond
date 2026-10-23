@@ -7,6 +7,8 @@ const DEFAULT_SALON = {
   name: 'Braids and Beyond',
   phone: null,
   whatsappNumber: null,
+  address: null,
+  email: null,
   currency: 'USD',
   timezone: 'UTC',
   slotIntervalMinutes: 15,

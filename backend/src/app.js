@@ -9,6 +9,7 @@ const serviceRoutes = require('./routes/services');
 const appointmentRoutes = require('./routes/appointments');
 const adminRoutes = require('./routes/admin');
 const paymentRoutes = require('./routes/payments');
+const contactRoutes = require('./routes/contact');
 const { getBusinessHours } = require('./services/businessHours');
 const { getPickupVehicles } = require('./services/pickup');
 const { toWhatsAppNumber } = require('./services/whatsapp');
@@ -18,6 +19,8 @@ const { notFound, errorHandler } = require('./middleware/errorHandler');
 const app = express();
 
 app.disable('x-powered-by');
+// Behind Render's proxy: req.ip is the visitor's address (used to rate-limit the contact form)
+app.set('trust proxy', 1);
 app.use(cors({ origin: config.clientOrigin }));
 // rawBody: the Paystack webhook signature is computed over the exact bytes received
 app.use(
@@ -42,7 +45,7 @@ app.get('/api/health', async (req, res) => {
 app.get(
   '/api/config',
   asyncHandler(async (req, res) => {
-    const { name, phone, currency, timezone, slotIntervalMinutes } = config.salon;
+    const { name, phone, address, email, currency, timezone, slotIntervalMinutes } = config.salon;
     const whatsappNumber = phone ? toWhatsAppNumber(phone) : null;
     const { enabled, methods, banks, depositPercent, holdMinutes, freeCancellationHours, lateCancelRefundPercent } =
       config.payments;
@@ -57,7 +60,19 @@ app.get(
       lateCancelRefundPercent,
     };
     const [hours, pickupVehicles] = await Promise.all([getBusinessHours(), getPickupVehicles({ activeOnly: true })]);
-    res.json({ name, phone, whatsappNumber, currency, timezone, slotIntervalMinutes, hours, pickupVehicles, deposits });
+    res.json({
+      name,
+      phone,
+      whatsappNumber,
+      address,
+      email,
+      currency,
+      timezone,
+      slotIntervalMinutes,
+      hours,
+      pickupVehicles,
+      deposits,
+    });
   })
 );
 
@@ -69,6 +84,7 @@ app.use('/api/services', serviceRoutes);
 app.use('/api/appointments', appointmentRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/contact', contactRoutes);
 
 // Serve the built React app (frontend/dist) when it exists, so one service hosts site + API.
 // Any non-API GET falls back to index.html so React Router can handle deep links like /admin/hours.

@@ -1425,3 +1425,72 @@ html {
   font-size: 0.8rem;
   color: var(--muted);
 }
+
+/* ---------- Contact page ---------- */
+.contact-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.contact-page h1 {
+  margin-bottom: 0;
+}
+
+.contact-page h2 {
+  font-size: 1.1rem;
+  margin: 0 0 6px;
+}
+
+.contact-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.contact-details {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.contact-details p {
+  margin: 0 0 8px;
+}
+
+.contact-address {
+  white-space: pre-line;
+}
+
+.contact-hours {
+  margin: 0;
+}
+
+.contact-hours > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 3px 0;
+}
+
+.contact-hours dd {
+  margin: 0;
+}
+
+.contact-map {
+  width: 100%;
+  height: 320px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

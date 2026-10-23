@@ -149,3 +149,13 @@ export function servicePrice(service, currency) {
   const lo = Math.min(...prices);
   return lo === Math.max(...prices) ? formatPrice(lo, currency) : `from ${formatPrice(lo, currency)}`;
 }
+
+// "0801 234 5678" -> "tel:08012345678"
+export function telHref(phone) {
+  return `tel:${phone.replace(/[^\d+]/g, '')}`;
+}
+
+// Google Maps search / directions for an address
+export function mapsUrl(address) {
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+}

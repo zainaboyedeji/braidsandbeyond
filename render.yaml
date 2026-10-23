@@ -17,7 +17,11 @@ services:
       - key: SALON_NAME
         value: Braids and Beyond
       - key: SALON_PHONE
-        sync: false
+        value: 0816 259 8682
+      - key: SALON_ADDRESS
+        value: 112 Herbert Macaulay Way, Ebute Metta East, Lagos
+      - key: SALON_EMAIL
+        value: braidsandbeyond@beautybayafrica.com
       - key: SALON_CURRENCY
         value: NGN
       - key: SALON_TIMEZONE

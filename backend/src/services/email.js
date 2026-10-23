@@ -460,6 +460,25 @@ async function sendPasswordResetEmail(user, resetUrl) {
   });
 }
 
+// A message from the Contact page, to the salon; replying goes straight to the client
+async function sendContactMessage({ name, email, phone, message }) {
+  await transporter.sendMail({
+    from: config.email.from,
+    to: config.salon.email || config.email.adminEmail,
+    replyTo: email,
+    subject: `Website message from ${name}`,
+    html: layout(
+      'New message from the website',
+      `<p style="margin:0 0 16px;white-space:pre-wrap;">${escapeHtml(message)}</p>
+       <p style="margin:0;font-size:14px;line-height:1.6;color:#7a716c;">
+         ${escapeHtml(name)}<br/>${escapeHtml(email)}${phone ? `<br/>${escapeHtml(phone)}` : ''}
+       </p>
+       <p style="margin:16px 0 0;font-size:13px;color:#7a716c;">Reply to this email to answer ${escapeHtml(name)}.</p>`
+    ),
+    text: [message, '', `${name} <${email}>${phone ? ` ${phone}` : ''}`].join('\n'),
+  });
+}
+
 async function verifyEmailTransport() {
   try {
     await transporter.verify();
@@ -475,5 +494,6 @@ module.exports = {
   sendRescheduleEmails,
   sendCustomerCancelledEmail,
   sendPasswordResetEmail,
+  sendContactMessage,
   verifyEmailTransport,
 };

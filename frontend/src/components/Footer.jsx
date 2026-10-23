@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { WEEKDAYS, formatClock } from '../utils/format';
+import { WEEKDAYS, formatClock, mapsUrl, telHref } from '../utils/format';
 import BrandName from './BrandName';
 
 export default function Footer() {
@@ -32,10 +32,37 @@ export default function Footer() {
               <Link to="/my-appointments">My appointments</Link>
             </li>
             <li>
+              <Link to="/contact">Contact us</Link>
+            </li>
+            <li>
               <Link to="/policies">Policies and Terms</Link>
             </li>
           </ul>
         </div>
+        {(salon.phone || salon.address || salon.email) && (
+          <div>
+            <h4>Contact</h4>
+            <ul>
+              {salon.phone && (
+                <li>
+                  <a href={telHref(salon.phone)}>{salon.phone}</a>
+                </li>
+              )}
+              {salon.email && (
+                <li>
+                  <a href={`mailto:${salon.email}`}>{salon.email}</a>
+                </li>
+              )}
+              {salon.address && (
+                <li>
+                  <a href={mapsUrl(salon.address)} target="_blank" rel="noreferrer">
+                    {salon.address}
+                  </a>
+                </li>
+              )}
+            </ul>
+          </div>
+        )}
         {open.length > 0 && (
           <div>
             <h4>Opening hours</h4>
