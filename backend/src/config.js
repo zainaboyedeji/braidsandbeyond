@@ -88,6 +88,25 @@ const config = {
     adminEmail: process.env.ADMIN_EMAIL,
   },
 
+  // Deposits are taken when booking if at least one way to pay is set up:
+  //  - PAYSTACK_SECRET_KEY (sk_test_… while testing, sk_live_… for real money) for paying online
+  //  - BANK_NAME + BANK_ACCOUNT_NAME + BANK_ACCOUNT_NUMBER for bank transfer (the admin marks it received);
+  //    add BANK2_NAME + BANK2_ACCOUNT_NAME + BANK2_ACCOUNT_NUMBER (BANK3_…) to offer more accounts
+  // With neither, bookings are made without any payment.
+  payments: {
+    enabled: false, // set below
+    methods: [], // set below: 'paystack' and/or 'transfer', in the order shown to clients
+    paystackSecretKey: process.env.PAYSTACK_SECRET_KEY,
+    banks: [], // set below
+    depositPercent: toInt('DEPOSIT_PERCENT', 50, { min: 1, max: 100 }),
+    // How long an unpaid booking keeps its slot while the client is on the payment page
+    holdMinutes: toInt('PAYMENT_HOLD_MINUTES', 30, { min: 5, max: 240 }),
+    // Cancelling at least this long before the appointment refunds the whole deposit…
+    freeCancellationHours: toInt('FREE_CANCELLATION_HOURS', 24, { min: 0, max: 720 }),
+    // …later than that, only this share of the deposit is refunded
+    lateCancelRefundPercent: toInt('LATE_CANCEL_REFUND_PERCENT', 50, { min: 0, max: 100 }),
+  },
+
   // Optional: set WHATSAPP_TOKEN + WHATSAPP_PHONE_NUMBER_ID to message customers when a booking is confirmed
   whatsapp: {
     enabled: Boolean(process.env.WHATSAPP_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID),
@@ -100,5 +119,16 @@ const config = {
     defaultCountryCode: (process.env.WHATSAPP_DEFAULT_COUNTRY_CODE || '234').replace(/\D/g, ''),
   },
 };
+
+const { payments } = config;
+if (payments.paystackSecretKey) payments.methods.push('paystack');
+for (const prefix of ['BANK', 'BANK2', 'BANK3']) {
+  const name = process.env[`${prefix}_NAME`];
+  const accountName = process.env[`${prefix}_ACCOUNT_NAME`];
+  const accountNumber = process.env[`${prefix}_ACCOUNT_NUMBER`];
+  if (name && accountName && accountNumber) payments.banks.push({ name, accountName, accountNumber });
+}
+if (payments.banks.length > 0) payments.methods.push('transfer');
+payments.enabled = payments.methods.length > 0;
 
 module.exports = config;

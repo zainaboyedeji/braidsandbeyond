@@ -168,6 +168,21 @@ CREATE TRIGGER appointments_set_updated_at
   BEFORE UPDATE ON appointments
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
+-- ---------- DEPOSITS (paid online through Paystack, or by bank transfer, when booking) ----------
+-- deposit_status NULL = no deposit was asked for (booked before deposits existed, or payments switched off).
+-- 'unpaid' Paystack bookings hold their slot only for a short while (PAYMENT_HOLD_MINUTES) before being cancelled;
+-- 'unpaid' transfer bookings wait for the admin to mark the money received (or cancel).
+-- refund_cents is what was (or, for 'refund_due' / 'refund_failed', still has to be) sent back on cancellation.
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS deposit_cents     INTEGER CHECK (deposit_cents > 0);
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS deposit_status    VARCHAR(20);
+ALTER TABLE appointments DROP CONSTRAINT IF EXISTS appointments_deposit_status_check;
+ALTER TABLE appointments ADD CONSTRAINT appointments_deposit_status_check CHECK (deposit_status IN
+  ('unpaid', 'paid', 'refunded', 'partially_refunded', 'forfeited', 'refund_due', 'refund_failed'));
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS payment_method    VARCHAR(20) CHECK (payment_method IN ('paystack', 'transfer'));
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS payment_reference VARCHAR(100);
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS deposit_paid_at   TIMESTAMPTZ;
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS refund_cents      INTEGER CHECK (refund_cents >= 0);
+
 -- ---------- PASSWORD RESETS ("forgot password" links, single use, 1 hour) ----------
 -- Only a SHA-256 of the emailed token is stored, so a DB leak can't be used to reset passwords.
 CREATE TABLE IF NOT EXISTS password_resets (

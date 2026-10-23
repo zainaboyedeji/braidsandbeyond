@@ -5,6 +5,7 @@ const { requireAuth, requireAdmin } = require('../middleware/auth');
 const bookingService = require('../services/bookingService');
 const { sendStatusEmail } = require('../services/email');
 const { sendConfirmationWhatsApp, confirmationLink } = require('../services/whatsapp');
+const { refundDeposit } = require('../services/payments');
 const { getBusinessHours, setBusinessHours } = require('../services/businessHours');
 const { getPickupVehicles, setPickupVehicles } = require('../services/pickup');
 const { HttpError, asyncHandler, parseId } = require('../utils/http');
@@ -37,6 +38,7 @@ router.get(
       where.push(`a.status = $${params.length}`);
     }
 
+    await bookingService.releaseExpiredHolds(db);
     const { rows } = await db.query(
       `SELECT a.id, a.start_time, a.end_time, a.status, a.notes, a.created_at,
               a.client_id, a.manage_token,
@@ -45,7 +47,8 @@ router.get(
               COALESCE(a.contact_phone, u.phone)    AS client_phone,
               s.id AS service_id, s.name AS service_name, s.duration_minutes, s.price_cents,
               a.pickup_hours, a.pickup_price_cents, a.pickup_address,
-              pv.tier AS pickup_tier, pv.name AS pickup_vehicle_name
+              pv.tier AS pickup_tier, pv.name AS pickup_vehicle_name,
+              a.deposit_cents, a.deposit_status, a.payment_method, a.refund_cents
          FROM appointments a
          LEFT JOIN users u ON u.id = a.client_id
          JOIN services s ON s.id = a.service_id
@@ -67,10 +70,17 @@ router.patch(
   '/appointments/:id/status',
   asyncHandler(async (req, res) => {
     const appointmentId = parseId(req.params.id);
-    const { booking, previousStatus } = await bookingService.updateBookingStatus({
+    const updated = await bookingService.updateBookingStatus({
       appointmentId,
       status: req.body.status,
     });
+    const { previousStatus } = updated;
+    let { booking } = updated;
+
+    // The salon cancelling gives the client their whole deposit back
+    if (booking.status === 'cancelled' && previousStatus !== 'cancelled' && booking.deposit_status === 'paid') {
+      booking = await refundDeposit(booking, booking.deposit_cents);
+    }
 
     // Let the customer know when the salon confirms or cancels. Committed already, so send failures are non-fatal.
     let emailSent = false;
@@ -90,6 +100,19 @@ router.patch(
       if (whatsapp.reason) console.warn(`Booking #${booking.id}: no WhatsApp sent, ${whatsapp.reason}`);
     }
     res.json({ booking, emailSent, whatsapp });
+  })
+);
+
+// PATCH /api/admin/appointments/:id/deposit  { action: 'received' | 'refunded' }
+// For money that moves outside Paystack: a bank transfer deposit arriving, or a refund sent by hand
+router.patch(
+  '/appointments/:id/deposit',
+  asyncHandler(async (req, res) => {
+    const booking = await bookingService.recordDepositAction({
+      appointmentId: parseId(req.params.id),
+      action: req.body.action,
+    });
+    res.json({ booking });
   })
 );
 

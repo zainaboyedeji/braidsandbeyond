@@ -34,13 +34,55 @@ const BOOKING_DETAILS_SQL = `
     a.pickup_price_cents,
     a.pickup_address,
     pv.tier AS pickup_tier,
-    pv.name AS pickup_vehicle_name
+    pv.name AS pickup_vehicle_name,
+    a.deposit_cents,
+    a.deposit_status,
+    a.payment_method,
+    a.payment_reference,
+    a.deposit_paid_at,
+    a.refund_cents
   FROM appointments a
   LEFT JOIN users           u  ON u.id = a.client_id
   JOIN      services        s  ON s.id = a.service_id
   LEFT JOIN pickup_vehicles pv ON pv.id = a.pickup_vehicle_id
   WHERE a.id = $1
 `;
+
+/**
+ * Unpaid Paystack bookings only hold their slot while the client is on the payment page.
+ * Called before every availability / overlap check, so an abandoned payment frees the slot.
+ * Bank transfer bookings are left alone: the admin marks the money received or cancels them.
+ */
+async function releaseExpiredHolds(client) {
+  await client.query(
+    `UPDATE appointments
+        SET status = 'cancelled'
+      WHERE status = 'pending'
+        AND deposit_status = 'unpaid'
+        AND payment_method = 'paystack'
+        AND created_at < NOW() - make_interval(mins => $1)`,
+    [config.payments.holdMinutes]
+  );
+}
+
+/** Deposit for a booking total, or null when deposits are off (or the booking is free) */
+function depositFor(totalCents) {
+  if (!config.payments.enabled) return null;
+  return Math.round((totalCents * config.payments.depositPercent) / 100) || null;
+}
+
+/**
+ * How much of a paid deposit goes back when the booking is cancelled now.
+ * The salon cancelling refunds everything; a client cancelling refunds everything only with
+ * enough notice (FREE_CANCELLATION_HOURS), otherwise LATE_CANCEL_REFUND_PERCENT of it.
+ */
+function refundForCancellation(appt, { byClient }) {
+  if (appt.deposit_status !== 'paid') return 0;
+  if (!byClient) return appt.deposit_cents;
+  const hoursLeft = (new Date(appt.start_time).getTime() - Date.now()) / (60 * 60 * 1000);
+  if (hoursLeft >= config.payments.freeCancellationHours) return appt.deposit_cents;
+  return Math.round((appt.deposit_cents * config.payments.lateCancelRefundPercent) / 100);
+}
 
 function parseStart(startTime) {
   const start = new Date(startTime);
@@ -56,6 +98,7 @@ function parseStart(startTime) {
  * `excludeId` skips that appointment in the overlap check (used when rescheduling it).
  */
 async function assertSlotBookable(client, { service, start, excludeId = null }) {
+  await releaseExpiredHolds(client);
   const end = new Date(start.getTime() + service.duration_minutes * 60 * 1000);
 
   // Validate against that weekday's business hours in the salon's local timezone.
@@ -113,9 +156,10 @@ async function assertSlotBookable(client, { service, start, excludeId = null }) 
  *  4. INSERT                 -> exclusion constraint is the final DB-level guarantee
  *  5. SELECT with JOINs      -> client + service data for emails
  *  6. COMMIT (or ROLLBACK on any error)
- * `clientId` is null for guest bookings; `contact` is always required; `pickup` is the optional car add-on.
+ * `clientId` is null for guest bookings; `contact` is always required; `pickup` is the optional car add-on;
+ * `paymentMethod` ('paystack' | 'transfer') is how the deposit will be paid, when deposits are on.
  */
-async function createBooking({ clientId, serviceId, startTime, notes, contact, pickup = null }) {
+async function createBooking({ clientId, serviceId, startTime, notes, contact, pickup = null, paymentMethod = null }) {
   const start = parseStart(startTime);
 
   return db.withTransaction(async (client) => {
@@ -123,7 +167,7 @@ async function createBooking({ clientId, serviceId, startTime, notes, contact, p
 
     // FOR SHARE: the service can't be deactivated/changed mid-booking
     const serviceResult = await client.query(
-      `SELECT id, duration_minutes, is_active FROM services WHERE id = $1 FOR SHARE`,
+      `SELECT id, duration_minutes, price_cents, is_active FROM services WHERE id = $1 FOR SHARE`,
       [serviceId]
     );
     const service = serviceResult.rows[0];
@@ -133,12 +177,14 @@ async function createBooking({ clientId, serviceId, startTime, notes, contact, p
 
     const end = await assertSlotBookable(client, { service, start });
     const pickupPrice = pickup ? await priceForPickup(client, pickup) : null;
+    const depositCents = depositFor(service.price_cents + (pickupPrice || 0));
 
     const insertResult = await client.query(
       `INSERT INTO appointments
          (client_id, service_id, start_time, end_time, status, notes, contact_name, contact_email, contact_phone,
-          pickup_vehicle_id, pickup_hours, pickup_price_cents, pickup_address)
-       VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7, $8, $9, $10, $11, $12)
+          pickup_vehicle_id, pickup_hours, pickup_price_cents, pickup_address, deposit_cents, deposit_status,
+          payment_method)
+       VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
        RETURNING id`,
       [
         clientId,
@@ -153,6 +199,9 @@ async function createBooking({ clientId, serviceId, startTime, notes, contact, p
         pickup?.hours ?? null,
         pickupPrice,
         pickup?.address ?? null,
+        depositCents,
+        depositCents ? 'unpaid' : null,
+        depositCents ? paymentMethod : null,
       ]
     );
 
@@ -176,6 +225,7 @@ async function getAvailability({ serviceId, date, excludeId = null }) {
     throw new HttpError(400, 'date must be in YYYY-MM-DD format');
   }
 
+  await releaseExpiredHolds(db);
   const serviceResult = await db.query(
     'SELECT id, duration_minutes FROM services WHERE id = $1 AND is_active = TRUE',
     [serviceId]
@@ -243,7 +293,7 @@ async function lockAppointment(client, { appointmentId, token }) {
     throw new HttpError(404, 'Booking not found');
   }
   const { rows } = await client.query(
-    `SELECT id, client_id, service_id, status, start_time, end_time
+    `SELECT id, client_id, service_id, status, start_time, end_time, deposit_cents, deposit_status, payment_method
        FROM appointments
       WHERE ${token !== undefined ? 'manage_token = $1' : 'id = $1'}
       FOR UPDATE`,
@@ -259,6 +309,7 @@ async function lockAppointment(client, { appointmentId, token }) {
  * Cancels a booking, identified either by id (logged-in owner or admin) or by manage token (anyone holding the link).
  * Customers can only cancel future bookings; admins can cancel any.
  * Locked with FOR UPDATE so a concurrent status change can't interleave.
+ * Returns the booking and how much of its deposit to refund (the caller sends the refund after commit).
  */
 async function cancelBooking({ appointmentId, token, user = null }) {
   const isAdmin = user?.role === 'admin';
@@ -281,7 +332,7 @@ async function cancelBooking({ appointmentId, token, user = null }) {
 
     await client.query(`UPDATE appointments SET status = 'cancelled' WHERE id = $1`, [appt.id]);
     const details = await client.query(BOOKING_DETAILS_SQL, [appt.id]);
-    return details.rows[0];
+    return { booking: details.rows[0], refundCents: refundForCancellation(appt, { byClient: !isAdmin }) };
   });
 }
 
@@ -299,6 +350,9 @@ async function rescheduleBooking({ token, startTime }) {
 
     if (!['pending', 'confirmed'].includes(appt.status)) {
       throw new HttpError(400, `A ${appt.status} appointment cannot be rescheduled`);
+    }
+    if (appt.deposit_status === 'unpaid') {
+      throw new HttpError(400, 'Please pay the deposit before rescheduling');
     }
     if (new Date(appt.start_time) <= new Date()) {
       throw new HttpError(400, 'Past appointments cannot be rescheduled');
@@ -344,6 +398,7 @@ async function updateBookingStatus({ appointmentId, status }) {
 
     const becomingActive = ['pending', 'confirmed'].includes(status) && !['pending', 'confirmed'].includes(appt.status);
     if (becomingActive) {
+      await releaseExpiredHolds(client);
       const conflict = await client.query(
         `SELECT id
            FROM appointments
@@ -364,8 +419,76 @@ async function updateBookingStatus({ appointmentId, status }) {
   });
 }
 
+/**
+ * Records a successful deposit payment. Idempotent: the redirect back from Paystack and the
+ * webhook both call this, and only the first one gets newlyPaid = true (and sends the emails).
+ * If the booking was already cancelled (the hold ran out before the payment came in), the slot
+ * isn't taken back; `lateForSlot` tells the caller to refund the whole deposit instead.
+ */
+async function markDepositPaid({ appointmentId, reference, paidCents }) {
+  return db.withTransaction(async (client) => {
+    const { rows } = await client.query(
+      'SELECT id, status, deposit_status, deposit_cents FROM appointments WHERE id = $1 FOR UPDATE',
+      [appointmentId]
+    );
+    const appt = rows[0];
+    if (!appt) throw new HttpError(404, 'Booking not found');
+
+    let newlyPaid = false;
+    if (appt.deposit_status === 'unpaid') {
+      if (paidCents < appt.deposit_cents) {
+        throw new HttpError(400, 'The amount paid does not match the deposit');
+      }
+      await client.query(
+        `UPDATE appointments
+            SET deposit_status = 'paid', deposit_paid_at = NOW(), payment_reference = $2
+          WHERE id = $1`,
+        [appt.id, reference]
+      );
+      newlyPaid = true;
+    }
+    const details = await client.query(BOOKING_DETAILS_SQL, [appt.id]);
+    return { booking: details.rows[0], newlyPaid, lateForSlot: newlyPaid && appt.status === 'cancelled' };
+  });
+}
+
+/**
+ * Admin bookkeeping for money that moves outside Paystack:
+ *  'received' -> a bank transfer deposit arrived
+ *  'refunded' -> the salon sent back a refund by hand (transfer refunds, or a Paystack refund that failed)
+ */
+async function recordDepositAction({ appointmentId, action }) {
+  return db.withTransaction(async (client) => {
+    const appt = await lockAppointment(client, { appointmentId });
+    const { rows } = await client.query('SELECT refund_cents FROM appointments WHERE id = $1', [appt.id]);
+
+    if (action === 'received') {
+      if (appt.deposit_status !== 'unpaid') throw new HttpError(400, 'This booking has no unpaid deposit');
+      await client.query(
+        `UPDATE appointments SET deposit_status = 'paid', deposit_paid_at = NOW() WHERE id = $1`,
+        [appt.id]
+      );
+    } else if (action === 'refunded') {
+      if (!['refund_due', 'refund_failed'].includes(appt.deposit_status)) {
+        throw new HttpError(400, 'This booking has no refund waiting to be sent');
+      }
+      const status = rows[0].refund_cents < appt.deposit_cents ? 'partially_refunded' : 'refunded';
+      await client.query('UPDATE appointments SET deposit_status = $1 WHERE id = $2', [status, appt.id]);
+    } else {
+      throw new HttpError(400, "action must be 'received' or 'refunded'");
+    }
+
+    const details = await client.query(BOOKING_DETAILS_SQL, [appt.id]);
+    return details.rows[0];
+  });
+}
+
 module.exports = {
   BOOKING_DETAILS_SQL,
+  recordDepositAction,
+  releaseExpiredHolds,
+  refundForCancellation,
+  markDepositPaid,
   createBooking,
   getAvailability,
   getBookingById,

@@ -8,6 +8,7 @@ const authRoutes = require('./routes/auth');
 const serviceRoutes = require('./routes/services');
 const appointmentRoutes = require('./routes/appointments');
 const adminRoutes = require('./routes/admin');
+const paymentRoutes = require('./routes/payments');
 const { getBusinessHours } = require('./services/businessHours');
 const { getPickupVehicles } = require('./services/pickup');
 const { asyncHandler } = require('./utils/http');
@@ -17,7 +18,15 @@ const app = express();
 
 app.disable('x-powered-by');
 app.use(cors({ origin: config.clientOrigin }));
-app.use(express.json({ limit: '100kb' }));
+// rawBody: the Paystack webhook signature is computed over the exact bytes received
+app.use(
+  express.json({
+    limit: '100kb',
+    verify: (req, res, buf) => {
+      req.rawBody = buf;
+    },
+  })
+);
 
 app.get('/api/health', async (req, res) => {
   try {
@@ -33,8 +42,20 @@ app.get(
   '/api/config',
   asyncHandler(async (req, res) => {
     const { name, currency, timezone, slotIntervalMinutes } = config.salon;
+    const { enabled, methods, banks, depositPercent, holdMinutes, freeCancellationHours, lateCancelRefundPercent } =
+      config.payments;
+    const deposits = {
+      enabled,
+      methods,
+      // Shown to clients who choose to pay by transfer
+      banks,
+      depositPercent,
+      holdMinutes,
+      freeCancellationHours,
+      lateCancelRefundPercent,
+    };
     const [hours, pickupVehicles] = await Promise.all([getBusinessHours(), getPickupVehicles({ activeOnly: true })]);
-    res.json({ name, currency, timezone, slotIntervalMinutes, hours, pickupVehicles });
+    res.json({ name, currency, timezone, slotIntervalMinutes, hours, pickupVehicles, deposits });
   })
 );
 
@@ -45,6 +66,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/services', serviceRoutes);
 app.use('/api/appointments', appointmentRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/payments', paymentRoutes);
 
 // Serve the built React app (frontend/dist) when it exists, so one service hosts site + API.
 // Any non-API GET falls back to index.html so React Router can handle deep links like /admin/hours.

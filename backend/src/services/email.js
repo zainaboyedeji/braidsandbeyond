@@ -87,6 +87,91 @@ function pickupText(booking) {
   ].join('\n');
 }
 
+const DEPOSIT_LABELS = {
+  unpaid: 'not paid yet',
+  paid: 'paid',
+  refunded: 'refunded in full',
+  partially_refunded: 'partly refunded',
+  forfeited: 'kept (late cancellation)',
+  refund_due: 'refund being processed',
+  refund_failed: 'refund being processed',
+};
+
+function depositLabel(booking) {
+  if (booking.deposit_status === 'unpaid' && booking.payment_method === 'transfer') return 'awaiting bank transfer';
+  return DEPOSIT_LABELS[booking.deposit_status] || booking.deposit_status;
+}
+
+// What to put in the transfer narration so the salon can match the payment to the booking
+function transferReference(booking) {
+  return `Booking ${booking.id}`;
+}
+
+function awaitingTransfer(booking) {
+  return booking.deposit_status === 'unpaid' && booking.payment_method === 'transfer';
+}
+
+function transferBlock(booking) {
+  const { banks } = config.payments;
+  const rows = [
+    ['Amount', formatPrice(booking.deposit_cents)],
+    ['Reference', transferReference(booking)],
+    ...banks.map((bank, i) => [
+      banks.length > 1 ? `Account ${i + 1}` : 'Account',
+      `${bank.name} · ${bank.accountNumber} · ${bank.accountName}`,
+    ]),
+  ];
+  return `<h3 style="margin:24px 0 8px;font-size:15px;">Pay your deposit by bank transfer</h3>
+    <p style="margin:0 0 8px;font-size:14px;">Your booking is held for you, and the salon will confirm it once your deposit arrives.
+      ${banks.length > 1 ? 'Pay into any one of these accounts.' : ''}</p>
+    <table role="presentation" width="100%" style="border-collapse:collapse;font-size:14px;background:#fdeef6;border-radius:8px;">
+      ${rows
+        .map(
+          ([label, value]) => `<tr>
+            <td style="padding:8px 12px;color:#7a716c;width:130px;">${escapeHtml(label)}</td>
+            <td style="padding:8px 12px;font-weight:bold;">${escapeHtml(value)}</td>
+          </tr>`
+        )
+        .join('')}
+    </table>`;
+}
+
+function transferText(booking) {
+  const { banks } = config.payments;
+  return [
+    `Pay your ${formatPrice(booking.deposit_cents)} deposit by bank transfer${banks.length > 1 ? ' into any one of:' : ':'}`,
+    ...banks.map((bank) => `${bank.name} · ${bank.accountNumber} · ${bank.accountName}`),
+    `Reference: ${transferReference(booking)}`,
+  ].join('\n');
+}
+
+function depositRows(booking) {
+  if (!booking.deposit_cents) return [];
+  const rows = [
+    ['Deposit', `${formatPrice(booking.deposit_cents)} (${depositLabel(booking)})`],
+  ];
+  if (['paid', 'unpaid'].includes(booking.deposit_status) && booking.status !== 'cancelled') {
+    rows.push(['Balance due at salon', formatPrice(totalCents(booking) - booking.deposit_cents)]);
+  }
+  if (booking.refund_cents) rows.push(['Refund', formatPrice(booking.refund_cents)]);
+  return rows;
+}
+
+function depositText(booking) {
+  return depositRows(booking)
+    .map(([label, value]) => `${label}: ${value}`)
+    .join('\n');
+}
+
+// "Free cancellation up to 24 hours before…", shown to clients who paid a deposit
+function cancellationPolicy() {
+  const { freeCancellationHours, lateCancelRefundPercent } = config.payments;
+  return (
+    `Cancel at least ${freeCancellationHours} hours before your appointment for a full refund of your deposit. ` +
+    `Later cancellations get ${lateCancelRefundPercent}% of the deposit back.`
+  );
+}
+
 function detailsTable(booking) {
   const rows = [
     ['Booking #', booking.id],
@@ -103,6 +188,7 @@ function detailsTable(booking) {
       ['Total', formatPrice(totalCents(booking))]
     );
   }
+  rows.push(...depositRows(booking));
   if (booking.notes) rows.push(['Notes', booking.notes]);
 
   return `<table role="presentation" width="100%" style="border-collapse:collapse;font-size:14px;">
@@ -144,7 +230,8 @@ function clientText(booking) {
 function buildAdminEmail(booking) {
   const html = layout(
     'New booking request',
-    `<p style="margin:0 0 16px;">A new appointment was just requested. It stays <strong>pending</strong> until you confirm it on the dashboard.</p>
+    `<p style="margin:0 0 16px;">A new appointment was just requested. It stays <strong>pending</strong> until you confirm it on the dashboard.
+       ${awaitingTransfer(booking) ? `The client chose to pay the deposit by bank transfer (reference "${escapeHtml(transferReference(booking))}"): mark it received on the dashboard once it arrives.` : ''}</p>
      ${detailsTable(booking)}
      ${clientBlock(booking)}
      ${button(`${config.publicUrl}/admin`, 'Open dashboard to confirm')}`
@@ -175,9 +262,11 @@ function buildClientEmail(booking) {
     `<p style="margin:0 0 16px;">Hi ${escapeHtml(booking.client_name)}, thanks for booking with us!
        Your appointment is <strong>pending</strong>. We'll email you again as soon as the salon confirms it.</p>
      ${detailsTable(booking)}
+     ${awaitingTransfer(booking) ? transferBlock(booking) : ''}
      ${button(manageUrl(booking), 'View, reschedule or cancel')}
      <p style="margin:16px 0 0;font-size:13px;color:#7a716c;">
        Keep this email: the button above is your private link to manage this booking.
+       ${booking.deposit_cents ? escapeHtml(cancellationPolicy()) : ''}
      </p>`
   );
 
@@ -193,7 +282,10 @@ function buildClientEmail(booking) {
       `When: ${formatDateTime(booking.start_time)}`,
       pickupText(booking),
       `Price: ${formatPrice(booking.price_cents)}`,
+      depositText(booking),
+      awaitingTransfer(booking) ? transferText(booking) : '',
       `View, reschedule or cancel: ${manageUrl(booking)}`,
+      booking.deposit_cents ? cancellationPolicy() : '',
     ].join('\n'),
   };
 }
@@ -208,7 +300,9 @@ const STATUS_MESSAGES = {
   cancelled: {
     title: 'Your appointment was cancelled',
     subject: 'Booking cancelled',
-    intro: 'Unfortunately the salon had to cancel this appointment. Reply to this email or book another time.',
+    intro:
+      'Unfortunately the salon had to cancel this appointment. Any deposit you paid is refunded in full. ' +
+      'Reply to this email or book another time.',
   },
 };
 
@@ -236,6 +330,7 @@ function buildStatusEmail(booking) {
       `Service: ${booking.service_name}`,
       `When: ${formatDateTime(booking.start_time)}`,
       pickupText(booking),
+      depositText(booking),
       booking.status === 'cancelled' ? '' : `Manage your booking: ${manageUrl(booking)}`,
     ].join('\n'),
   };
@@ -308,6 +403,7 @@ function buildCustomerCancelledAdminEmail(booking) {
       `Service: ${booking.service_name}`,
       `When: ${formatDateTime(booking.start_time)}`,
       pickupText(booking),
+      depositText(booking),
       clientText(booking),
     ].join('\n'),
   };
