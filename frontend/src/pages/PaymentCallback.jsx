@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { useApp } from '../context/AppContext';
+import { trackBookingCompleted } from '../utils/analytics';
 import { cancellationPolicy, formatDateTime, formatPickup, formatPrice } from '../utils/format';
 
 // Paystack sends the client here (with ?reference=…) after the deposit checkout
@@ -21,7 +22,10 @@ export default function PaymentCallback() {
     }
     api
       .get(`/payments/verify?reference=${encodeURIComponent(reference)}`)
-      .then(setResult)
+      .then((data) => {
+        if (data.paid && !data.expired) trackBookingCompleted(data.booking);
+        setResult(data);
+      })
       .catch((err) => setError(err.message));
   }, [reference]);
 

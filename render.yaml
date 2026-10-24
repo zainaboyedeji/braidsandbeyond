@@ -55,6 +55,9 @@ services:
         sync: false
       - key: CLIENT_ORIGIN
         sync: false
+      # Google Analytics 4 Measurement ID (G-XXXXXXX); read when the site is built
+      - key: VITE_GA_ID
+        value: G-01ZN8HYTP4
       # Deposits: Paystack and/or bank transfer (leave all blank to take bookings without payment)
       - key: PAYSTACK_SECRET_KEY
         sync: false

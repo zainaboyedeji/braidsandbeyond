@@ -4,6 +4,7 @@ import { api, assetUrl, cachedServices, fetchServices } from '../api/client';
 import PhotoGallery, { servicePhotoPaths } from '../components/PhotoGallery';
 import TransferDetails from '../components/TransferDetails';
 import { useApp } from '../context/AppContext';
+import { trackBookingCompleted } from '../utils/analytics';
 import { clearBookingDraft, loadBookingDraft, saveBookingDraft } from '../utils/bookingDraft';
 import {
   PAYMENT_METHODS,
@@ -168,6 +169,7 @@ export default function Book() {
         window.location.assign(data.paymentUrl);
         return;
       }
+      trackBookingCompleted(data.booking);
       setConfirmation(data);
       setSubmitting(false);
     } catch (err) {
