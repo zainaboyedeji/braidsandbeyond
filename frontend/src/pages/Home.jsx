@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { assetUrl, cachedServices, fetchServices } from '../api/client';
 import PhotoGallery, { servicePhotoPaths } from '../components/PhotoGallery';
 import { useApp } from '../context/AppContext';
@@ -14,6 +14,13 @@ export default function Home() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(() => !cachedServices());
   const [gallery, setGallery] = useState(null);
+  const navigate = useNavigate();
+
+  // Clicking anywhere on a card books that service; its own link and photos button do their own thing
+  function openCard(e, service) {
+    if (e.target.closest('a, button')) return;
+    navigate(`/book?serviceId=${service.id}`);
+  }
 
   useEffect(() => {
     fetchServices()
@@ -55,7 +62,7 @@ export default function Home() {
       ) : (
         <div className="grid">
           {services.map((service) => (
-            <article key={service.id} className="card service-card">
+            <article key={service.id} className="card service-card" onClick={(e) => openCard(e, service)}>
               {service.image_path ? (
                 <div className="service-image-wrap">
                   <img className="service-image" src={assetUrl(service.image_path)} alt={service.name} loading="lazy" />
@@ -92,8 +99,7 @@ export default function Home() {
                 <span>{serviceDuration(service)}</span>
                 <strong>{servicePrice(service, salon.currency)}</strong>
               </div>
-              {/* card-link stretches over the whole card, so clicking anywhere on it books this service */}
-              <Link to={`/book?serviceId=${service.id}`} className="btn btn-primary card-link">
+              <Link to={`/book?serviceId=${service.id}`} className="btn btn-primary">
                 Book now
               </Link>
             </article>

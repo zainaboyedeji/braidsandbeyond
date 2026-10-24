@@ -1164,15 +1164,10 @@ html {
   transform: scale(1.04);
 }
 
-/* The whole card opens the booking page: the Book now link's click area covers the card */
+/* The whole card opens the booking page (click handled on the card in Home.jsx) */
 .service-card {
   position: relative;
-}
-
-.card-link::after {
-  content: '';
-  position: absolute;
-  inset: 0;
+  cursor: pointer;
 }
 
 /* Instant feedback when a card is pressed */
@@ -1181,7 +1176,7 @@ html {
   transition-duration: 0.05s;
 }
 
-/* …except the photos badge, which sits above it and opens the gallery */
+/* The photos badge opens the gallery instead */
 .service-card .photo-count {
   z-index: 1;
   border: none;
