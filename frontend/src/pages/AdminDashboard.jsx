@@ -1,25 +1,49 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api/client';
 import { useApp } from '../context/AppContext';
-import { addDays, formatDeposit, formatPickup, formatPrice, formatTime, todayInZone } from '../utils/format';
+import {
+  addDays,
+  formatDateTime,
+  formatDeposit,
+  formatPickup,
+  formatPrice,
+  formatTime,
+  todayInZone,
+} from '../utils/format';
 
 const STATUSES = ['pending', 'confirmed', 'completed', 'cancelled'];
+
+// What each stat card opens in the list below it ('day' is the single-day list with the date picker)
+const VIEW_TITLES = {
+  pending: 'Awaiting confirmation',
+  upcoming: 'Upcoming appointments',
+  completed: 'Completed appointments',
+  clients: 'Clients',
+};
 
 export default function AdminDashboard() {
   const { salon } = useApp();
   const [date, setDate] = useState(todayInZone(salon.timezone));
+  const [view, setView] = useState('day');
   const [appointments, setAppointments] = useState([]);
+  const [clients, setClients] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState(null);
   const [busyId, setBusyId] = useState(null);
+  const listRef = useRef(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [appts, s] = await Promise.all([api.get(`/admin/appointments?date=${date}`), api.get('/admin/stats')]);
-      setAppointments(appts.appointments);
+      const listRequest =
+        view === 'clients'
+          ? api.get('/admin/clients')
+          : api.get(view === 'day' ? `/admin/appointments?date=${date}` : `/admin/appointments?view=${view}`);
+      const [list, s] = await Promise.all([listRequest, api.get('/admin/stats')]);
+      if (view === 'clients') setClients(list.clients);
+      else setAppointments(list.appointments);
       setStats(s);
       setError('');
     } catch (err) {
@@ -27,7 +51,18 @@ export default function AdminDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [date]);
+  }, [date, view]);
+
+  // A stat card was clicked: show its list and bring it into view
+  function openView(next) {
+    setView(next);
+    setTimeout(() => listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+  }
+
+  function showDay(next) {
+    setView('day');
+    setDate(next);
+  }
 
   useEffect(() => {
     load();
@@ -77,41 +112,55 @@ export default function AdminDashboard() {
 
       {stats && (
         <div className="stats">
-          <div className="card stat">
-            <span className="muted">Today</span>
-            <strong>{stats.todayCount}</strong>
-          </div>
-          <div className="card stat">
-            <span className="muted">Awaiting confirmation</span>
-            <strong>{stats.pendingCount}</strong>
-          </div>
-          <div className="card stat">
-            <span className="muted">Upcoming</span>
-            <strong>{stats.upcomingCount}</strong>
-          </div>
-          <div className="card stat">
-            <span className="muted">Clients</span>
-            <strong>{stats.clientCount}</strong>
-          </div>
-          <div className="card stat">
-            <span className="muted">Revenue (completed)</span>
-            <strong>{formatPrice(stats.revenueCents, salon.currency)}</strong>
-          </div>
+          {[
+            ['today', 'Today', stats.todayCount],
+            ['pending', 'Awaiting confirmation', stats.pendingCount],
+            ['upcoming', 'Upcoming', stats.upcomingCount],
+            ['clients', 'Clients', stats.clientCount],
+            ['completed', 'Revenue (completed)', formatPrice(stats.revenueCents, salon.currency)],
+          ].map(([key, label, value]) => {
+            const today = todayInZone(salon.timezone);
+            const active = key === 'today' ? view === 'day' && date === today : view === key;
+            return (
+              <button
+                type="button"
+                key={key}
+                className={`card stat stat-link ${active ? 'stat-active' : ''}`}
+                aria-pressed={active}
+                onClick={() => {
+                  if (key === 'today') setDate(today);
+                  openView(key === 'today' ? 'day' : key);
+                }}
+              >
+                <span className="muted">{label}</span>
+                <strong>{value}</strong>
+              </button>
+            );
+          })}
         </div>
       )}
 
-      <div className="day-nav">
-        <button type="button" className="btn btn-outline btn-sm" onClick={() => setDate(addDays(date, -1))}>
+      <div className="day-nav" ref={listRef}>
+        <button type="button" className="btn btn-outline btn-sm" onClick={() => showDay(addDays(date, -1))}>
           ← Prev
         </button>
-        <input type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} />
-        <button type="button" className="btn btn-outline btn-sm" onClick={() => setDate(addDays(date, 1))}>
+        <input type="date" value={date} onChange={(e) => e.target.value && showDay(e.target.value)} />
+        <button type="button" className="btn btn-outline btn-sm" onClick={() => showDay(addDays(date, 1))}>
           Next →
         </button>
-        <button type="button" className="btn btn-ghost btn-sm" onClick={() => setDate(todayInZone(salon.timezone))}>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={() => showDay(todayInZone(salon.timezone))}>
           Today
         </button>
       </div>
+
+      {view !== 'day' && (
+        <h2 className="list-title">
+          {VIEW_TITLES[view]}{' '}
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setView('day')}>
+            Back to day view
+          </button>
+        </h2>
+      )}
 
       {error && <div className="alert alert-error">{error}</div>}
       {notice && (
@@ -127,8 +176,43 @@ export default function AdminDashboard() {
 
       {loading ? (
         <p className="muted">Loading…</p>
+      ) : view === 'clients' ? (
+        clients.length === 0 ? (
+          <p className="muted">No clients yet.</p>
+        ) : (
+          <div className="table-wrap card">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Client</th>
+                  <th>Contact</th>
+                  <th>Bookings</th>
+                  <th>Last booking</th>
+                </tr>
+              </thead>
+              <tbody>
+                {clients.map((c) => (
+                  <tr key={c.email}>
+                    <td>
+                      {c.name}
+                      {!c.has_account && <span className="muted small"> (guest)</span>}
+                    </td>
+                    <td className="small">
+                      <a href={`mailto:${c.email}`}>{c.email}</a>
+                      {c.phone && <div className="muted">{c.phone}</div>}
+                    </td>
+                    <td>{c.booking_count}</td>
+                    <td className="small">
+                      {c.last_booking ? formatDateTime(c.last_booking, salon.timezone) : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
       ) : appointments.length === 0 ? (
-        <p className="muted">No appointments on this day.</p>
+        <p className="muted">{view === 'day' ? 'No appointments on this day.' : 'Nothing here right now.'}</p>
       ) : (
         <div className="table-wrap card">
           <table className="table">
@@ -145,7 +229,9 @@ export default function AdminDashboard() {
               {appointments.map((a) => (
                 <tr key={a.id} className={a.status === 'cancelled' ? 'row-muted' : ''}>
                   <td>
-                    {formatTime(a.start_time, salon.timezone)} – {formatTime(a.end_time, salon.timezone)}
+                    {view === 'day'
+                      ? `${formatTime(a.start_time, salon.timezone)} – ${formatTime(a.end_time, salon.timezone)}`
+                      : formatDateTime(a.start_time, salon.timezone)}
                   </td>
                   <td>
                     <div>

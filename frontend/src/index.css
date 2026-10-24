@@ -648,6 +648,39 @@ textarea:focus {
   font-size: 1.5rem;
 }
 
+/* Stat cards on the dashboard open the matching list */
+.stat-link {
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+}
+
+.stat-link:hover {
+  border-color: var(--pink);
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-1px);
+}
+
+.stat-active {
+  border-color: var(--pink-deep);
+  background: var(--surface-alt);
+}
+
+.list-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 1.3rem;
+  margin: 0 0 12px;
+}
+
+.list-title .btn {
+  font-family: var(--font-body);
+}
+
 .day-nav {
   display: flex;
   align-items: center;

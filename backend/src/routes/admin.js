@@ -14,16 +14,31 @@ const router = express.Router();
 
 router.use(requireAuth, requireAdmin);
 
+// The dashboard's stat cards open these lists; each matches how its card is counted in /stats
+const APPOINTMENT_VIEWS = {
+  pending: { where: `a.start_time >= NOW() AND a.status = 'pending'`, order: 'ASC' },
+  upcoming: { where: `a.start_time >= NOW() AND a.status IN ('pending', 'confirmed')`, order: 'ASC' },
+  completed: { where: `a.status = 'completed'`, order: 'DESC' },
+};
+
 // GET /api/admin/appointments?date=2026-10-20&status=confirmed
-// date is a salon-local calendar day; omit it to get all upcoming appointments
+// GET /api/admin/appointments?view=pending|upcoming|completed
+// date is a salon-local calendar day; without date or view you get all upcoming appointments
 router.get(
   '/appointments',
   asyncHandler(async (req, res) => {
-    const { date, status } = req.query;
+    const { date, status, view } = req.query;
     const params = [];
     const where = [];
+    let order = 'ASC';
 
-    if (date) {
+    if (view) {
+      if (!APPOINTMENT_VIEWS[view]) {
+        throw new HttpError(400, `view must be one of: ${Object.keys(APPOINTMENT_VIEWS).join(', ')}`);
+      }
+      where.push(APPOINTMENT_VIEWS[view].where);
+      order = APPOINTMENT_VIEWS[view].order;
+    } else if (date) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new HttpError(400, 'date must be YYYY-MM-DD');
       params.push(date, config.salon.timezone);
       where.push(`(a.start_time AT TIME ZONE $2)::date = $1::date`);
@@ -54,7 +69,7 @@ router.get(
          JOIN services s ON s.id = a.service_id
          LEFT JOIN pickup_vehicles pv ON pv.id = a.pickup_vehicle_id
         WHERE ${where.join(' AND ')}
-        ORDER BY a.start_time ASC`,
+        ORDER BY a.start_time ${order}`,
       params
     );
     const appointments = rows.map(({ manage_token, ...a }) => ({
@@ -62,6 +77,41 @@ router.get(
       whatsapp_link: a.status === 'confirmed' ? confirmationLink({ ...a, manage_token }) : null,
     }));
     res.json({ appointments });
+  })
+);
+
+// GET /api/admin/clients
+// Registered clients plus guests (one row per email address, as counted in /stats), most recent booking first
+router.get(
+  '/clients',
+  asyncHandler(async (req, res) => {
+    const { rows } = await db.query(
+      `WITH bookings AS (
+         SELECT LOWER(COALESCE(a.contact_email, u.email)) AS key,
+                COUNT(*)::int AS booking_count,
+                MAX(a.start_time) AS last_booking,
+                (ARRAY_AGG(COALESCE(a.contact_name, u.full_name) ORDER BY a.start_time DESC))[1] AS name,
+                (ARRAY_AGG(COALESCE(a.contact_email, u.email) ORDER BY a.start_time DESC))[1] AS email,
+                (ARRAY_AGG(COALESCE(a.contact_phone, u.phone) ORDER BY a.start_time DESC))[1] AS phone
+           FROM appointments a
+           LEFT JOIN users u ON u.id = a.client_id
+          WHERE a.client_id IS NULL OR u.role = 'client'
+          GROUP BY 1
+       ),
+       accounts AS (
+         SELECT LOWER(email) AS key, full_name, email, phone FROM users WHERE role = 'client'
+       )
+       SELECT COALESCE(ac.full_name, b.name)  AS name,
+              COALESCE(ac.email, b.email)     AS email,
+              COALESCE(ac.phone, b.phone)     AS phone,
+              ac.key IS NOT NULL              AS has_account,
+              COALESCE(b.booking_count, 0)    AS booking_count,
+              b.last_booking
+         FROM accounts ac
+         FULL JOIN bookings b ON b.key = ac.key
+        ORDER BY b.last_booking DESC NULLS LAST, 1`
+    );
+    res.json({ clients: rows });
   })
 );
 
