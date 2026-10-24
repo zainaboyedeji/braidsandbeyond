@@ -26,7 +26,11 @@ export default function Navbar() {
           </Link>
           <nav className="nav-links">
             <NavLink to="/book">Book</NavLink>
-            {user && <NavLink to="/my-appointments">My Appointments</NavLink>}
+            {user ? (
+              <NavLink to="/my-appointments">My Appointments</NavLink>
+            ) : (
+              <NavLink to="/booking">My booking</NavLink>
+            )}
             {user?.role === 'admin' && (
               <>
                 <NavLink to="/admin" end>

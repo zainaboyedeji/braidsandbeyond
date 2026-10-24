@@ -6,7 +6,11 @@ const bookingService = require('../services/bookingService');
 const { startDepositPayment, refundDeposit } = require('../services/payments');
 const { parsePickup } = require('../services/pickup');
 const config = require('../config');
-const { HttpError, asyncHandler, parseId, parseContact } = require('../utils/http');
+const { EMAIL_RE, HttpError, asyncHandler, parseId, parseContact } = require('../utils/http');
+const { createRateLimiter } = require('../utils/rateLimit');
+
+// Lookups by booking number + email: plenty for a client who mistypes, too few to guess other people's
+const tooManyLookups = createRateLimiter({ max: 10, windowMs: 15 * 60 * 1000 });
 
 const router = express.Router();
 
@@ -107,6 +111,36 @@ router.get(
 );
 
 // ---------- Manage by private link (guests and signed-in customers alike) ----------
+
+// POST /api/appointments/lookup  { bookingId, email }
+// "Find my booking" for clients without an account (or without their email): the booking number alone
+// isn't enough, it has to match the email it was booked with. Returns the private manage token.
+router.post(
+  '/lookup',
+  asyncHandler(async (req, res) => {
+    const bookingId = Number(String(req.body.bookingId || '').replace(/^#/, '').trim());
+    const email = String(req.body.email || '').trim().toLowerCase();
+    if (!Number.isInteger(bookingId) || bookingId <= 0) throw new HttpError(400, 'Enter your booking number');
+    if (!EMAIL_RE.test(email)) throw new HttpError(400, 'Enter the email address you booked with');
+    if (tooManyLookups(req.ip)) {
+      throw new HttpError(
+        429,
+        'Too many attempts. Please wait a few minutes, or use the link in your booking email.'
+      );
+    }
+
+    const { rows } = await db.query(
+      `SELECT a.manage_token
+         FROM appointments a
+         LEFT JOIN users u ON u.id = a.client_id
+        WHERE a.id = $1 AND LOWER(COALESCE(a.contact_email, u.email)) = $2`,
+      [bookingId, email]
+    );
+    // Same answer whether the number or the email is wrong, so it can't be used to probe either
+    if (!rows[0]) throw new HttpError(404, "We couldn't find a booking with that number and email.");
+    res.json({ manageToken: rows[0].manage_token });
+  })
+);
 
 // GET /api/appointments/manage/:token
 // refundIfCancelled: what the client would get back from their deposit if they cancelled right now

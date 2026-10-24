@@ -1,21 +1,12 @@
 const express = require('express');
 const { sendContactMessage } = require('../services/email');
 const { EMAIL_RE, HttpError, asyncHandler } = require('../utils/http');
+const { createRateLimiter } = require('../utils/rateLimit');
 
 const router = express.Router();
 
 // Simple flood guard: a handful of messages per visitor per hour is plenty for a contact form
-const MAX_PER_HOUR = 5;
-const recent = new Map(); // ip -> timestamps of recent messages
-
-function tooMany(ip) {
-  const hourAgo = Date.now() - 60 * 60 * 1000;
-  const times = (recent.get(ip) || []).filter((t) => t > hourAgo);
-  times.push(Date.now());
-  recent.set(ip, times);
-  if (recent.size > 10000) recent.clear(); // never let the map grow without bound
-  return times.length > MAX_PER_HOUR;
-}
+const tooMany = createRateLimiter({ max: 5, windowMs: 60 * 60 * 1000 });
 
 // POST /api/contact  { name, email, phone?, message, website? }
 // Emails the salon; replying to that email goes straight to the client.

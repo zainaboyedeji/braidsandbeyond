@@ -265,7 +265,8 @@ function buildClientEmail(booking) {
      ${awaitingTransfer(booking) ? transferBlock(booking) : ''}
      ${button(manageUrl(booking), 'View, reschedule or cancel')}
      <p style="margin:16px 0 0;font-size:13px;color:#7a716c;">
-       Keep this email: the button above is your private link to manage this booking.
+       Keep this email: the button above is your private link to manage this booking. You can also find it
+       any time at ${escapeHtml(`${config.publicUrl}/booking/${booking.id}`)} with your email address.
        ${booking.deposit_cents ? escapeHtml(cancellationPolicy()) : ''}
      </p>`
   );
@@ -285,6 +286,7 @@ function buildClientEmail(booking) {
       depositText(booking),
       awaitingTransfer(booking) ? transferText(booking) : '',
       `View, reschedule or cancel: ${manageUrl(booking)}`,
+      `Or find it any time at ${config.publicUrl}/booking/${booking.id} with your email address.`,
       booking.deposit_cents ? cancellationPolicy() : '',
     ].join('\n'),
   };

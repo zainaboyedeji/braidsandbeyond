@@ -32,6 +32,9 @@ export default function Footer() {
               <Link to="/my-appointments">My appointments</Link>
             </li>
             <li>
+              <Link to="/booking">Find my booking</Link>
+            </li>
+            <li>
               <Link to="/contact">Contact us</Link>
             </li>
             <li>

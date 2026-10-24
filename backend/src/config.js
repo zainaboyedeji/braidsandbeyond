@@ -51,8 +51,15 @@ const config = {
   port: toInt('PORT', 5000, { min: 1, max: 65535 }),
   nodeEnv: process.env.NODE_ENV || 'development',
   clientOrigin: process.env.CLIENT_ORIGIN || 'http://localhost:5173',
-  // Base URL of the website, used for links in emails (e.g. the "manage booking" link)
-  publicUrl: (process.env.PUBLIC_URL || process.env.CLIENT_ORIGIN || 'http://localhost:5173').replace(/\/+$/, ''),
+  // Base URL of the website, used for links in emails (e.g. the "manage booking" link).
+  // On Render, RENDER_EXTERNAL_URL is set automatically to this service's own address; set PUBLIC_URL
+  // only to use a custom domain instead.
+  publicUrl: (
+    process.env.PUBLIC_URL ||
+    process.env.RENDER_EXTERNAL_URL ||
+    process.env.CLIENT_ORIGIN ||
+    'http://localhost:5173'
+  ).replace(/\/+$/, ''),
   uploadsDir: path.resolve(__dirname, '..', 'uploads'),
 
   // Set CLOUDINARY_URL (cloudinary://<api_key>:<api_secret>@<cloud_name>) to store photos on Cloudinary
