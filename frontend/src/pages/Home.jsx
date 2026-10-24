@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api, assetUrl } from '../api/client';
+import { assetUrl, cachedServices, fetchServices } from '../api/client';
 import PhotoGallery, { servicePhotoPaths } from '../components/PhotoGallery';
 import { useApp } from '../context/AppContext';
 import { WEEKDAYS, formatClock, serviceDuration, servicePrice } from '../utils/format';
@@ -10,15 +10,14 @@ const DISPLAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
 
 export default function Home() {
   const { salon } = useApp();
-  const [services, setServices] = useState([]);
+  const [services, setServices] = useState(() => cachedServices() || []);
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !cachedServices());
   const [gallery, setGallery] = useState(null);
 
   useEffect(() => {
-    api
-      .get('/services')
-      .then((data) => setServices(data.services))
+    fetchServices()
+      .then(setServices)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, []);

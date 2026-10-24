@@ -65,3 +65,16 @@ export const api = {
   upload: (path, formData) => request('POST', path, formData),
   del: (path) => request('DELETE', path),
 };
+
+// Last services list fetched, so pages opened right after the home page can show it instantly
+let servicesCache = null;
+
+export function cachedServices() {
+  return servicesCache;
+}
+
+export async function fetchServices() {
+  const data = await api.get('/services');
+  servicesCache = data.services;
+  return data.services;
+}

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
-import { api, assetUrl } from '../api/client';
+import { api, assetUrl, cachedServices, fetchServices } from '../api/client';
 import PhotoGallery, { servicePhotoPaths } from '../components/PhotoGallery';
 import TransferDetails from '../components/TransferDetails';
 import { useApp } from '../context/AppContext';
@@ -31,7 +31,8 @@ export default function Book() {
   const [searchParams] = useSearchParams();
 
   const today = todayInZone(salon.timezone);
-  const [services, setServices] = useState([]);
+  // Shown straight away from the home page's list, then refreshed
+  const [services, setServices] = useState(() => cachedServices() || []);
   const [serviceId, setServiceId] = useState(searchParams.get('serviceId') || '');
   const [variantId, setVariantId] = useState(searchParams.get('variantId') || '');
   const [date, setDate] = useState(() => {
@@ -65,9 +66,8 @@ export default function Book() {
   }, [confirmation]);
 
   useEffect(() => {
-    api
-      .get('/services')
-      .then((data) => setServices(data.services))
+    fetchServices()
+      .then(setServices)
       .catch((err) => setError(err.message));
   }, []);
 

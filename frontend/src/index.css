@@ -921,9 +921,16 @@ body:has(.modal[open]) {
 .footer-inner {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 32px;
-  padding-top: 48px;
-  padding-bottom: 32px;
+  gap: 40px 56px;
+  padding-top: 56px;
+  padding-bottom: 40px;
+}
+
+/* Wide screens: four columns, with room for the long email and address in Contact */
+@media (min-width: 960px) {
+  .footer-inner {
+    grid-template-columns: 1.3fr 0.8fr 1.5fr 1fr;
+  }
 }
 
 .footer .brand {
@@ -937,7 +944,7 @@ body:has(.modal[open]) {
 
 .footer h4 {
   color: #fff;
-  margin: 0 0 12px;
+  margin: 0 0 16px;
   font-size: 0.8rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -958,7 +965,12 @@ body:has(.modal[open]) {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 10px;
+}
+
+/* A long email can't push into the next column: it wraps if it must */
+.footer li {
+  overflow-wrap: anywhere;
 }
 
 .footer p {
@@ -1161,6 +1173,12 @@ html {
   content: '';
   position: absolute;
   inset: 0;
+}
+
+/* Instant feedback when a card is pressed */
+.service-card:active {
+  transform: translateY(-1px) scale(0.985);
+  transition-duration: 0.05s;
 }
 
 /* …except the photos badge, which sits above it and opens the gallery */
