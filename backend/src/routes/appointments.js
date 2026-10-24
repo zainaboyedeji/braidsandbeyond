@@ -59,7 +59,8 @@ router.post(
     }
 
     const booking = await bookingService.createBooking({
-      clientId: req.user ? req.user.id : null,
+      // An admin booking for a client: it belongs to the client's contact details, not the admin's account
+      clientId: req.user && req.user.role !== 'admin' ? req.user.id : null,
       serviceId,
       variantId,
       startTime: req.body.startTime,

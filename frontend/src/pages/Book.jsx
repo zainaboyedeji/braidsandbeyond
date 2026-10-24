@@ -76,11 +76,6 @@ export default function Book() {
     });
   }, [serviceId, variantId, date, selectedSlot, notes, pickup, paymentMethod, confirmation]);
 
-  // Pre-fill contact details from the account; the customer can still edit them for this booking
-  useEffect(() => {
-    if (user) setContact({ fullName: user.full_name || '', email: user.email || '', phone: user.phone || '' });
-  }, [user]);
-
   function updateContact(field) {
     return (e) => setContact((prev) => ({ ...prev, [field]: e.target.value }));
   }
