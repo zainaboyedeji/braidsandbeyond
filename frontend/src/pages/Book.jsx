@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { api, assetUrl, cachedServices, fetchServices } from '../api/client';
 import PhotoGallery, { servicePhotoPaths } from '../components/PhotoGallery';
 import TransferDetails from '../components/TransferDetails';
 import { useApp } from '../context/AppContext';
+import { clearBookingDraft, loadBookingDraft, saveBookingDraft } from '../utils/bookingDraft';
 import {
   PAYMENT_METHODS,
   PICKUP_TIERS,
@@ -31,25 +32,49 @@ export default function Book() {
   const [searchParams] = useSearchParams();
 
   const today = todayInZone(salon.timezone);
+  // Coming back from logging in / signing up mid-booking: pick up where the client left off.
+  // A service in the URL (e.g. a card on the home page) means a fresh booking instead.
+  const [draft] = useState(() => (searchParams.get('serviceId') ? null : loadBookingDraft()));
+  // Time slot to re-select once the restored day's times have loaded
+  const restoreSlot = useRef(draft?.slotStart || null);
+  const summaryRef = useRef(null);
+  // Only the latest availability request may update the times (switching dates quickly can make
+  // an older, slower answer arrive last)
+  const slotsRequest = useRef(0);
+
   // Shown straight away from the home page's list, then refreshed
   const [services, setServices] = useState(() => cachedServices() || []);
-  const [serviceId, setServiceId] = useState(searchParams.get('serviceId') || '');
-  const [variantId, setVariantId] = useState(searchParams.get('variantId') || '');
+  const [serviceId, setServiceId] = useState(draft?.serviceId || searchParams.get('serviceId') || '');
+  const [variantId, setVariantId] = useState(draft?.variantId || searchParams.get('variantId') || '');
   const [date, setDate] = useState(() => {
-    const fromUrl = searchParams.get('date');
-    return fromUrl && fromUrl >= today ? fromUrl : today;
+    const wanted = draft?.date || searchParams.get('date');
+    return wanted && wanted >= today ? wanted : today;
   });
   const [slots, setSlots] = useState([]);
   const [selectedSlot, setSelectedSlot] = useState(null);
-  const [notes, setNotes] = useState('');
+  const [notes, setNotes] = useState(draft?.notes || '');
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [confirmation, setConfirmation] = useState(null);
   const [contact, setContact] = useState({ fullName: '', email: '', phone: '' });
-  const [pickup, setPickup] = useState(NO_PICKUP);
+  const [pickup, setPickup] = useState(draft?.pickup || NO_PICKUP);
   const [galleryIndex, setGalleryIndex] = useState(null);
-  const [paymentMethod, setPaymentMethod] = useState(salon.deposits.methods?.[0] || null);
+  const [paymentMethod, setPaymentMethod] = useState(draft?.paymentMethod || salon.deposits.methods?.[0] || null);
+
+  // Keep the booking in progress, so leaving to log in or sign up (from here or the menu) doesn't lose it
+  useEffect(() => {
+    if (!serviceId || confirmation) return;
+    saveBookingDraft({
+      serviceId,
+      variantId,
+      date,
+      slotStart: selectedSlot?.start_time || restoreSlot.current,
+      notes,
+      pickup,
+      paymentMethod,
+    });
+  }, [serviceId, variantId, date, selectedSlot, notes, pickup, paymentMethod, confirmation]);
 
   // Pre-fill contact details from the account; the customer can still edit them for this booking
   useEffect(() => {
@@ -76,25 +101,43 @@ export default function Book() {
   const selectedVariant = variants.find((v) => String(v.id) === String(variantId));
   // What's being booked: the chosen option, or the service itself when it has none
   const option = variants.length > 0 ? selectedVariant : selectedService;
+  // Plain values, so refreshing the services list in the background doesn't reload the times
+  // (and drop the time the client already picked)
+  const hasOption = Boolean(option);
+  const selectedVariantId = selectedVariant?.id;
 
   const loadSlots = useCallback(async () => {
     // Wait for the services list, and for an option to be picked on services that have them
-    if (!option || !date) {
+    const request = ++slotsRequest.current;
+    if (!hasOption || !date) {
       setSlots([]);
       return;
     }
     setLoadingSlots(true);
     try {
-      const variantParam = selectedVariant ? `&variantId=${selectedVariant.id}` : '';
+      const variantParam = selectedVariantId ? `&variantId=${selectedVariantId}` : '';
       const data = await api.get(`/appointments/availability?serviceId=${serviceId}${variantParam}&date=${date}`);
+      if (request !== slotsRequest.current) return;
       setSlots(data.slots);
+      if (restoreSlot.current) {
+        const match = data.slots.find((s) => s.start_time === restoreSlot.current);
+        restoreSlot.current = null;
+        if (match) {
+          setSelectedSlot(match);
+          // Back to where they were: the details form under the chosen time
+          setTimeout(() => summaryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+        } else {
+          setError('The time you picked has just been taken. Please choose another.');
+        }
+      }
     } catch (err) {
+      if (request !== slotsRequest.current) return;
       setError(err.message);
       setSlots([]);
     } finally {
-      setLoadingSlots(false);
+      if (request === slotsRequest.current) setLoadingSlots(false);
     }
-  }, [serviceId, date, option, selectedVariant]);
+  }, [serviceId, date, hasOption, selectedVariantId]);
 
   useEffect(() => {
     setSelectedSlot(null);
@@ -124,6 +167,7 @@ export default function Book() {
         pickup: pickupVehicle ? { vehicleId: pickupVehicle.id, hours: pickup.hours, address: pickup.address } : undefined,
         paymentMethod: depositCents > 0 ? paymentMethod : undefined,
       });
+      clearBookingDraft();
       if (data.paymentUrl) {
         // Off to Paystack; it sends the client back to /payment/callback
         window.location.assign(data.paymentUrl);
@@ -211,6 +255,7 @@ export default function Book() {
             <select
               value={serviceId}
               onChange={(e) => {
+                restoreSlot.current = null; // the client is choosing afresh
                 setServiceId(e.target.value);
                 setVariantId('');
               }}
@@ -230,7 +275,10 @@ export default function Book() {
               value={date}
               min={today}
               max={addDays(today, BOOKING_WINDOW_DAYS)}
-              onChange={(e) => setDate(e.target.value)}
+              onChange={(e) => {
+                restoreSlot.current = null;
+                setDate(e.target.value);
+              }}
             />
           </label>
         </div>
@@ -290,7 +338,10 @@ export default function Book() {
                   type="button"
                   key={v.id}
                   className={`slot ${selectedVariant?.id === v.id ? 'slot-selected' : ''}`}
-                  onClick={() => setVariantId(String(v.id))}
+                  onClick={() => {
+                    restoreSlot.current = null;
+                    setVariantId(String(v.id));
+                  }}
                   aria-pressed={selectedVariant?.id === v.id}
                 >
                   {v.name}
@@ -332,7 +383,7 @@ export default function Book() {
         )}
 
         {selectedSlot && option && (
-          <form className="summary" onSubmit={handleBook}>
+          <form className="summary" onSubmit={handleBook} ref={summaryRef}>
             <p>
               <strong>
                 {selectedService.name}
@@ -382,10 +433,14 @@ export default function Book() {
               {!user && (
                 <p className="muted small">
                   No account needed.{' '}
-                  <Link to="/login" state={{ from: location.pathname + location.search }}>
+                  <Link to="/login" state={{ from: location.pathname }}>
                     Log in
                   </Link>{' '}
-                  if you'd like to keep all your bookings in one place.
+                  or{' '}
+                  <Link to="/register" state={{ from: location.pathname }}>
+                    create an account
+                  </Link>{' '}
+                  if you'd like to keep all your bookings in one place. Your choices here are kept.
                 </p>
               )}
             </fieldset>

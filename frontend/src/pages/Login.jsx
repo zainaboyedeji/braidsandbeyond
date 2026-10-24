@@ -24,7 +24,9 @@ export default function Login() {
     setSubmitting(true);
     try {
       const loggedIn = await login(email, password);
-      navigate(loggedIn.role === 'admin' && !location.state?.from ? '/admin' : redirectTo, { replace: true });
+      // Admins go to the dashboard unless they were heading to another admin page
+      const adminTarget = redirectTo.startsWith('/admin') ? redirectTo : '/admin';
+      navigate(loggedIn.role === 'admin' ? adminTarget : redirectTo, { replace: true });
     } catch (err) {
       setError(err.message);
       setSubmitting(false);

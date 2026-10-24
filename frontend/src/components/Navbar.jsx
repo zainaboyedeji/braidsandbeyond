@@ -1,10 +1,15 @@
-import { Link, NavLink, useNavigate } from 'react-router-dom';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import BrandName from './BrandName';
 
 export default function Navbar() {
   const { user, salon, logout } = useApp();
   const navigate = useNavigate();
+  const location = useLocation();
+  // After logging in / signing up, go back to the page the visitor was on (on the auth pages themselves,
+  // keep wherever they were originally headed)
+  const onAuthPage = ['/login', '/register', '/forgot-password'].includes(location.pathname);
+  const returnHere = onAuthPage ? location.state : { from: location.pathname + location.search };
 
   function handleLogout() {
     logout();
@@ -47,8 +52,10 @@ export default function Navbar() {
               </button>
             ) : (
               <>
-                <NavLink to="/login">Log in</NavLink>
-                <Link to="/register" className="btn btn-primary btn-sm">
+                <NavLink to="/login" state={returnHere}>
+                  Log in
+                </NavLink>
+                <Link to="/register" state={returnHere} className="btn btn-primary btn-sm">
                   Sign up
                 </Link>
               </>
