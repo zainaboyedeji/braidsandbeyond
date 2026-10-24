@@ -383,7 +383,7 @@ h3 {
 .service-image-placeholder {
   width: calc(100% + 40px);
   margin: -20px -20px 4px;
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 4 / 5;
   display: grid;
   place-items: center;
   background: linear-gradient(135deg, #fdeef6, #f9c6e3);
@@ -398,14 +398,24 @@ h3 {
 
 .service-card p {
   margin: 0;
-  flex: 1;
+}
+
+/* Long descriptions are cut to two lines; the full text is in the title tooltip and on the booking page */
+.service-desc {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
 }
 
 .service-meta {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin: 8px 0;
+  /* Pushed to the bottom so prices and buttons line up across cards */
+  margin: auto 0 8px;
+  padding-top: 8px;
   color: var(--muted);
 }
 
@@ -692,10 +702,13 @@ textarea:focus {
 .service-image {
   width: calc(100% + 40px);
   margin: -20px -20px 4px;
-  aspect-ratio: 4 / 3;
+  /* Portrait: hairstyles are tall, so show more of the photo */
+  aspect-ratio: 4 / 5;
   object-fit: cover;
+  object-position: center 30%;
   border-radius: var(--radius) var(--radius) 0 0;
   display: block;
+  transition: transform 0.4s ease;
 }
 
 .book-service {
@@ -710,8 +723,8 @@ textarea:focus {
 }
 
 .book-service img {
-  width: 88px;
-  height: 88px;
+  width: 128px;
+  height: 160px;
   border-radius: 10px;
   object-fit: cover;
   object-position: center 25%;
@@ -1129,8 +1142,14 @@ html {
   margin: -20px -20px 4px;
   padding: 0;
   border: none;
+  border-radius: var(--radius) var(--radius) 0 0;
+  overflow: hidden;
   background: none;
   cursor: zoom-in;
+}
+
+.service-image-button:hover .service-image {
+  transform: scale(1.04);
 }
 
 .service-image-button .service-image {
@@ -1493,4 +1512,17 @@ html {
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
+}
+
+/* On phones the cards are full width, so a square photo is plenty tall */
+@media (max-width: 560px) {
+  .service-image,
+  .service-image-placeholder {
+    aspect-ratio: 1 / 1;
+  }
+
+  .book-service img {
+    width: 96px;
+    height: 120px;
+  }
 }

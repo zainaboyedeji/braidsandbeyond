@@ -75,7 +75,11 @@ export default function Home() {
                 </div>
               )}
               <h3>{service.name}</h3>
-              {service.description && <p className="muted">{service.description}</p>}
+              {service.description && (
+                <p className="muted service-desc" title={service.description}>
+                  {service.description}
+                </p>
+              )}
               {service.variants?.length > 0 && (
                 <div className="variant-chips">
                   {service.variants.map((v) => (
