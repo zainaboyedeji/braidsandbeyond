@@ -220,9 +220,9 @@ async function createBooking({
     const insertResult = await client.query(
       `INSERT INTO appointments
          (client_id, service_id, start_time, end_time, status, notes, contact_name, contact_email, contact_phone,
-          pickup_vehicle_id, pickup_hours, pickup_price_cents, pickup_address, deposit_cents, deposit_status,
+          pickup_vehicle_id, pickup_price_cents, pickup_address, deposit_cents, deposit_status,
           payment_method, variant_id, variant_name, service_price_cents)
-       VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+       VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
        RETURNING id`,
       [
         clientId,
@@ -234,7 +234,6 @@ async function createBooking({
         contact.email,
         contact.phone,
         pickup?.vehicleId ?? null,
-        pickup?.hours ?? null,
         pickupPrice,
         pickup?.address ?? null,
         depositCents,

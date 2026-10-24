@@ -84,6 +84,12 @@ export default function Footer() {
       </div>
       <div className="footer-bottom">
         © {new Date().getFullYear()} {salon.name}. All rights reserved.
+        <div className="footer-credit">
+          Created by{' '}
+          <a href="https://www.cre8lab.ng" target="_blank" rel="noopener noreferrer">
+            cre8lab
+          </a>
+        </div>
       </div>
     </footer>
   );

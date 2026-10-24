@@ -24,8 +24,7 @@ import {
 } from '../utils/format';
 
 const BOOKING_WINDOW_DAYS = 60;
-const PICKUP_HOURS = [6, 12];
-const NO_PICKUP = { vehicleId: null, hours: 6, address: '' };
+const NO_PICKUP = { vehicleId: null, address: '' };
 
 export default function Book() {
   const { user, salon } = useApp();
@@ -62,6 +61,7 @@ export default function Book() {
   const [pickup, setPickup] = useState(draft?.pickup || NO_PICKUP);
   const [galleryIndex, setGalleryIndex] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState(draft?.paymentMethod || salon.deposits.methods?.[0] || null);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   // Keep the booking in progress, so leaving to log in or sign up (from here or the menu) doesn't lose it
   useEffect(() => {
@@ -144,8 +144,7 @@ export default function Book() {
 
   const pickupVehicles = salon.pickupVehicles || [];
   const pickupVehicle = pickupVehicles.find((v) => v.id === pickup.vehicleId);
-  const pickupPrice = (vehicle, hours) => (hours === 6 ? vehicle.price_6h_cents : vehicle.price_12h_cents);
-  const pickupPriceCents = pickupVehicle ? pickupPrice(pickupVehicle, pickup.hours) : 0;
+  const pickupPriceCents = pickupVehicle?.price_cents || 0;
   const totalCents = (option?.price_cents || 0) + pickupPriceCents;
   const depositCents = depositFor(totalCents, salon.deposits);
 
@@ -160,7 +159,7 @@ export default function Book() {
         startTime: selectedSlot.start_time,
         notes: notes.trim() || undefined,
         contact,
-        pickup: pickupVehicle ? { vehicleId: pickupVehicle.id, hours: pickup.hours, address: pickup.address } : undefined,
+        pickup: pickupVehicle ? { vehicleId: pickupVehicle.id, address: pickup.address } : undefined,
         paymentMethod: depositCents > 0 ? paymentMethod : undefined,
       });
       clearBookingDraft();
@@ -192,7 +191,7 @@ export default function Book() {
         <p>
           <strong>{b.service_name}</strong> on <strong>{formatDateTime(b.start_time, salon.timezone)}</strong>
         </p>
-        {b.pickup_hours && (
+        {b.pickup_vehicle_name && (
           <p>
             {formatPickup(b)} · {formatPrice(b.pickup_price_cents, salon.currency)}
           </p>
@@ -230,6 +229,7 @@ export default function Book() {
               setConfirmation(null);
               setNotes('');
               setPickup(NO_PICKUP);
+              setAgreedToTerms(false);
               loadSlots();
             }}
           >
@@ -463,24 +463,12 @@ export default function Book() {
                     >
                       {PICKUP_TIERS[v.tier] || v.tier}
                       <div className="small">{v.name}</div>
+                      <div className="small">{formatPrice(v.price_cents, salon.currency)}</div>
                     </button>
                   ))}
                 </div>
                 {pickupVehicle && (
                   <>
-                    <div className="pickup-options">
-                      {PICKUP_HOURS.map((hours) => (
-                        <button
-                          type="button"
-                          key={hours}
-                          className={`slot ${pickup.hours === hours ? 'slot-selected' : ''}`}
-                          onClick={() => setPickup((p) => ({ ...p, hours }))}
-                        >
-                          {hours} hours
-                          <div className="small">{formatPrice(pickupPrice(pickupVehicle, hours), salon.currency)}</div>
-                        </button>
-                      ))}
-                    </div>
                     <label>
                       Pickup address
                       <textarea
@@ -545,26 +533,24 @@ export default function Book() {
                 </div>
               </fieldset>
             )}
-            <p className="muted small">
-              {depositCents > 0 && `${cancellationPolicy(salon.deposits)} `}
-              By booking you agree to our{' '}
-              <Link to="/policies" target="_blank">
-                Policies and Terms
-              </Link>
-              .
-            </p>
-            <button type="submit" className="btn btn-primary" disabled={submitting}>
-              {depositCents > 0 && paymentMethod === 'transfer'
-                ? submitting
-                  ? 'Booking…'
-                  : `Book & pay ${formatPrice(depositCents, salon.currency)} by transfer`
-                : depositCents > 0
-                ? submitting
-                  ? 'Taking you to payment…'
-                  : `Pay ${formatPrice(depositCents, salon.currency)} deposit & book`
-                : submitting
-                  ? 'Sending…'
-                  : 'Request booking'}
+            {depositCents > 0 && <p className="muted small">{cancellationPolicy(salon.deposits)}</p>}
+            <label className="terms-check">
+              <input
+                type="checkbox"
+                checked={agreedToTerms}
+                onChange={(e) => setAgreedToTerms(e.target.checked)}
+                required
+              />
+              <span>
+                I have read and agree to the{' '}
+                <Link to="/policies" target="_blank">
+                  Policies and Terms
+                </Link>
+                .
+              </span>
+            </label>
+            <button type="submit" className="btn btn-primary" disabled={submitting || !agreedToTerms}>
+              {submitting ? (depositCents > 0 && paymentMethod !== 'transfer' ? 'Taking you to payment…' : 'Booking…') : 'Book now'}
             </button>
           </form>
         )}

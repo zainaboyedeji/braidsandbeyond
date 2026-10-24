@@ -96,10 +96,10 @@ function layout(title, bodyHtml) {
 
 const PICKUP_TIERS = { luxury: 'Luxury', basic: 'Basic' };
 
-// "Luxury · Toyota Prado 2024 · 6 hours", or null when the customer didn't add a pickup
+// "Luxury · Toyota Prado 2024", or null when the customer didn't add a pickup
 function pickupSummary(booking) {
-  if (!booking.pickup_hours) return null;
-  return `${PICKUP_TIERS[booking.pickup_tier] || ''} · ${booking.pickup_vehicle_name} · ${booking.pickup_hours} hours`;
+  if (!booking.pickup_vehicle_name) return null;
+  return `${PICKUP_TIERS[booking.pickup_tier] || ''} · ${booking.pickup_vehicle_name}`;
 }
 
 function totalCents(booking) {
@@ -107,7 +107,7 @@ function totalCents(booking) {
 }
 
 function pickupText(booking) {
-  if (!booking.pickup_hours) return '';
+  if (!booking.pickup_vehicle_name) return '';
   return [
     `Pickup: ${pickupSummary(booking)} (${formatPrice(booking.pickup_price_cents)})`,
     `Pickup address: ${booking.pickup_address}`,
@@ -209,7 +209,7 @@ function detailsTable(booking) {
     ['Duration', `${booking.duration_minutes} minutes`],
     ['Price', formatPrice(booking.price_cents)],
   ];
-  if (booking.pickup_hours) {
+  if (booking.pickup_vehicle_name) {
     rows.push(
       ['Pickup', `${pickupSummary(booking)} (${formatPrice(booking.pickup_price_cents)})`],
       ['Pickup address', booking.pickup_address],

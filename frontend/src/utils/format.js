@@ -64,8 +64,8 @@ export const PICKUP_TIERS = { luxury: 'Luxury', basic: 'Basic' };
 
 // "Luxury pickup · Toyota Prado 2024 · 6 hours", or null when the booking has no pickup
 export function formatPickup(booking) {
-  if (!booking.pickup_hours) return null;
-  return `${PICKUP_TIERS[booking.pickup_tier] || ''} pickup · ${booking.pickup_vehicle_name} · ${booking.pickup_hours} hours`;
+  if (!booking.pickup_vehicle_name) return null;
+  return `${PICKUP_TIERS[booking.pickup_tier] || ''} pickup · ${booking.pickup_vehicle_name}`;
 }
 
 export const DEPOSIT_LABELS = {

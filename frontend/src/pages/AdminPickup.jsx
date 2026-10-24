@@ -9,8 +9,7 @@ function toForm(vehicles) {
     id: v.id,
     tier: v.tier,
     name: v.name,
-    price6h: (v.price_6h_cents / 100).toFixed(2),
-    price12h: (v.price_12h_cents / 100).toFixed(2),
+    price: (v.price_cents / 100).toFixed(2),
     isActive: v.is_active,
   }));
 }
@@ -44,8 +43,7 @@ export default function AdminPickup() {
         vehicles: vehicles.map((v) => ({
           id: v.id,
           name: v.name,
-          price6hCents: Math.round(Number(v.price6h) * 100),
-          price12hCents: Math.round(Number(v.price12h) * 100),
+          priceCents: Math.round(Number(v.price) * 100),
           isActive: v.isActive,
         })),
       });
@@ -63,8 +61,8 @@ export default function AdminPickup() {
     <>
       <h1>Pickup</h1>
       <p className="muted">
-        Customers can add a pickup to their booking for 6 or 12 hours. Only cars switched on here are offered. Price
-        changes don't affect bookings already made.
+        Customers can add a pickup to their booking. Only cars switched on here are offered. Price changes don't
+        affect bookings already made.
       </p>
       {error && <div className="alert alert-error">{error}</div>}
       {saved && <div className="alert alert-success">Pickup options saved.</div>}
@@ -86,24 +84,13 @@ export default function AdminPickup() {
                   />
                 </label>
                 <label>
-                  6 hours ({salon.currency})
+                  Price ({salon.currency})
                   <input
                     type="number"
                     min={0}
                     step="0.01"
-                    value={v.price6h}
-                    onChange={(e) => update(v.id, 'price6h', e.target.value)}
-                    required
-                  />
-                </label>
-                <label>
-                  12 hours ({salon.currency})
-                  <input
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    value={v.price12h}
-                    onChange={(e) => update(v.id, 'price12h', e.target.value)}
+                    value={v.price}
+                    onChange={(e) => update(v.id, 'price', e.target.value)}
                     required
                   />
                 </label>

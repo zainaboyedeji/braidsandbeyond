@@ -124,7 +124,9 @@ ALTER TABLE appointments
   ALTER COLUMN manage_token SET NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS appointments_manage_token_uniq ON appointments (manage_token);
 
--- ---------- PICKUP ADD-ON (optional car pickup, booked for 6 or 12 hours) ----------
+-- ---------- PICKUP ADD-ON (optional car pickup at one price per car) ----------
+-- price_6h_cents / price_12h_cents and appointments.pickup_hours are from when pickup was booked by the hour;
+-- they're kept so older bookings keep their data, but new bookings use price_cents and no hours.
 CREATE TABLE IF NOT EXISTS pickup_vehicles (
   id               SERIAL PRIMARY KEY,
   tier             VARCHAR(20)  NOT NULL UNIQUE CHECK (tier IN ('luxury', 'basic')),
@@ -150,6 +152,23 @@ BEGIN
     );
   END IF;
 END$$;
+
+-- One price per car; the first time this runs it takes over each car's 6-hour price
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns WHERE table_name = 'pickup_vehicles' AND column_name = 'price_cents'
+  ) THEN
+    ALTER TABLE pickup_vehicles ADD COLUMN price_cents INTEGER NOT NULL DEFAULT 0 CHECK (price_cents >= 0);
+    UPDATE pickup_vehicles SET price_cents = price_6h_cents;
+  END IF;
+END$$;
+ALTER TABLE appointments DROP CONSTRAINT IF EXISTS appointments_pickup_complete;
+ALTER TABLE appointments ADD CONSTRAINT appointments_pickup_complete CHECK (
+  (pickup_vehicle_id IS NULL AND pickup_hours IS NULL AND pickup_price_cents IS NULL AND pickup_address IS NULL)
+  OR (pickup_vehicle_id IS NOT NULL AND (pickup_hours IS NULL OR pickup_hours IN (6, 12))
+      AND pickup_price_cents >= 0 AND pickup_address IS NOT NULL)
+);
 
 CREATE INDEX IF NOT EXISTS appointments_client_idx     ON appointments (client_id);
 CREATE INDEX IF NOT EXISTS appointments_service_idx    ON appointments (service_id);

@@ -78,7 +78,7 @@ export default function MyAppointments() {
                 <div>
                   <strong>{a.service_name}</strong>
                   <div>{formatDateTime(a.start_time, salon.timezone)}</div>
-                  {a.pickup_hours && <div className="small">{formatPickup(a)}</div>}
+                  {a.pickup_vehicle_name && <div className="small">{formatPickup(a)}</div>}
                   {a.deposit_cents && <div className="small">{formatDeposit(a, salon.currency)}</div>}
                   <div className="muted">
                     #{a.id} · {formatPrice(a.price_cents, salon.currency)}{' '}

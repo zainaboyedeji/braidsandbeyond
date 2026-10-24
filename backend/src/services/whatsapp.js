@@ -42,8 +42,8 @@ function messageParams(booking) {
   return [
     booking.client_name,
     // The pickup rides along in the service parameter, so the approved template doesn't need changing
-    booking.pickup_hours
-      ? `${booking.service_name} + ${booking.pickup_vehicle_name} pickup (${booking.pickup_hours} hours)`
+    booking.pickup_vehicle_name
+      ? `${booking.service_name} + ${booking.pickup_vehicle_name} pickup`
       : booking.service_name,
     formatDateTime(booking.start_time),
     String(booking.id),

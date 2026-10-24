@@ -110,7 +110,7 @@ export default function PaymentCallback() {
       <p>
         <strong>{b.service_name}</strong> on <strong>{formatDateTime(b.start_time, salon.timezone)}</strong>
       </p>
-      {b.pickup_hours && (
+      {b.pickup_vehicle_name && (
         <p>
           {formatPickup(b)} · {formatPrice(b.pickup_price_cents, salon.currency)}
         </p>

@@ -133,7 +133,7 @@ export default function Policies() {
         <section className="card">
           <h2>Pickup service</h2>
           <ul>
-            <li>You can add a pickup (car and driver) to your booking for 6 or 12 hours.</li>
+            <li>You can add a pickup (car and driver) to your booking.</li>
             <li>
               The pickup price is added to your total{deposits.enabled ? ' and counts towards the deposit' : ''}.
             </li>

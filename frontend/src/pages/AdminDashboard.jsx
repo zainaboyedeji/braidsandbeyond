@@ -190,7 +190,7 @@ export default function AdminDashboard() {
                         Mark refunded
                       </button>
                     )}
-                    {a.pickup_hours && (
+                    {a.pickup_vehicle_name && (
                       <div className="small">
                         {formatPickup(a)} · {formatPrice(a.pickup_price_cents, salon.currency)}
                         <div className="muted">From: {a.pickup_address}</div>

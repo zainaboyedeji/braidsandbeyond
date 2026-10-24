@@ -16,14 +16,14 @@ SELECT generate_series(0, 6)
 ON CONFLICT (weekday) DO NOTHING;
 
 -- The two pickup cars with starting prices (in kobo/cents); the admin changes them in Admin → Pickup
-INSERT INTO pickup_vehicles (tier, name, price_6h_cents, price_12h_cents, is_active) VALUES
-  ('luxury', 'Toyota Prado 2024', 8000000, 15000000, TRUE),
-  ('basic',  'Toyota Corolla',    3500000,  6000000, TRUE)
+INSERT INTO pickup_vehicles (tier, name, price_cents, price_6h_cents, price_12h_cents, is_active) VALUES
+  ('luxury', 'Toyota Prado 2024', 8000000, 8000000, 15000000, TRUE),
+  ('basic',  'Toyota Corolla',    3500000, 3500000,  6000000, TRUE)
 ON CONFLICT (tier) DO NOTHING;
 
 -- Cars created before starting prices existed (still 0 and switched off): give them the same prices
 UPDATE pickup_vehicles v
-   SET price_6h_cents = d.p6, price_12h_cents = d.p12, is_active = TRUE
+   SET price_cents = d.p6, price_6h_cents = d.p6, price_12h_cents = d.p12, is_active = TRUE
   FROM (VALUES ('luxury', 8000000, 15000000), ('basic', 3500000, 6000000)) AS d(tier, p6, p12)
  WHERE v.tier = d.tier AND v.price_6h_cents = 0 AND v.price_12h_cents = 0 AND NOT v.is_active;
 

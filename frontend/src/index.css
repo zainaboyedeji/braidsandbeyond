@@ -36,6 +36,8 @@ body {
   font-family: var(--font-body);
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
+  /* Nothing may push the page sideways on phones */
+  overflow-x: clip;
 }
 
 #root {
@@ -437,7 +439,7 @@ h3 {
 
 .form-row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
   gap: 14px;
 }
 
@@ -459,6 +461,24 @@ textarea {
   background: var(--surface);
   color: var(--text);
   width: 100%;
+  min-width: 0;
+}
+
+/* iPhones draw date pickers wider than their box unless told not to */
+input[type='date'] {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  min-height: 44px;
+}
+
+/* Below 16px, iPhones zoom into the page when a field is tapped and it then slides left and right */
+@media (max-width: 640px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
 }
 
 input:focus,
@@ -1070,6 +1090,30 @@ html {
 
 .pickup-toggle input {
   width: auto;
+}
+
+.terms-check {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 10px;
+  font-weight: 400;
+}
+
+.terms-check input {
+  width: 18px;
+  height: 18px;
+  margin: 2px 0 0;
+  flex-shrink: 0;
+  accent-color: var(--pink-deep);
+}
+
+.footer-credit a {
+  color: var(--pink);
+  text-decoration: none;
+}
+
+.footer-credit a:hover {
+  text-decoration: underline;
 }
 
 .text-danger {

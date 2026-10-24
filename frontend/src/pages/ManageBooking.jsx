@@ -151,7 +151,7 @@ export default function ManageBooking() {
           <div>
             <strong>{booking.service_name}</strong>
             <div>{formatDateTime(booking.start_time, salon.timezone)}</div>
-            {booking.pickup_hours && (
+            {booking.pickup_vehicle_name && (
               <div className="small">
                 {formatPickup(booking)} · {formatPrice(booking.pickup_price_cents, salon.currency)}
                 <div className="muted">Pickup from: {booking.pickup_address}</div>
