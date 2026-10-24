@@ -1135,26 +1135,40 @@ html {
 }
 
 /* ---------- Service photo gallery ---------- */
-.service-image-button {
+.service-image-wrap {
   position: relative;
-  display: block;
   width: calc(100% + 40px);
   margin: -20px -20px 4px;
-  padding: 0;
-  border: none;
   border-radius: var(--radius) var(--radius) 0 0;
   overflow: hidden;
-  background: none;
-  cursor: zoom-in;
 }
 
-.service-image-button:hover .service-image {
+.service-image-wrap .service-image {
+  width: 100%;
+  margin: 0;
+}
+
+.service-card:hover .service-image {
   transform: scale(1.04);
 }
 
-.service-image-button .service-image {
-  width: 100%;
-  margin: 0;
+/* The whole card opens the booking page: the Book now link's click area covers the card */
+.service-card {
+  position: relative;
+}
+
+.card-link::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+/* …except the photos badge, which sits above it and opens the gallery */
+.service-card .photo-count {
+  z-index: 1;
+  border: none;
+  font-family: inherit;
+  cursor: pointer;
 }
 
 .photo-count {

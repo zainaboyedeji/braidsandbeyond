@@ -58,17 +58,19 @@ export default function Home() {
           {services.map((service) => (
             <article key={service.id} className="card service-card">
               {service.image_path ? (
-                <button
-                  type="button"
-                  className="service-image-button"
-                  onClick={() => setGallery(service)}
-                  aria-label={`See photos of ${service.name}`}
-                >
+                <div className="service-image-wrap">
                   <img className="service-image" src={assetUrl(service.image_path)} alt={service.name} loading="lazy" />
                   {service.photos?.length > 0 && (
-                    <span className="photo-count">+{service.photos.length} photos</span>
+                    <button
+                      type="button"
+                      className="photo-count"
+                      onClick={() => setGallery(service)}
+                      aria-label={`See all ${service.photos.length + 1} photos of ${service.name}`}
+                    >
+                      +{service.photos.length} photos
+                    </button>
                   )}
-                </button>
+                </div>
               ) : (
                 <div className="service-image-placeholder" aria-hidden="true">
                   {service.name.charAt(0)}
@@ -91,7 +93,8 @@ export default function Home() {
                 <span>{serviceDuration(service)}</span>
                 <strong>{servicePrice(service, salon.currency)}</strong>
               </div>
-              <Link to={`/book?serviceId=${service.id}`} className="btn btn-primary">
+              {/* card-link stretches over the whole card, so clicking anywhere on it books this service */}
+              <Link to={`/book?serviceId=${service.id}`} className="btn btn-primary card-link">
                 Book now
               </Link>
             </article>
