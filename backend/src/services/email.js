@@ -49,17 +49,45 @@ function formatPrice(cents) {
   }).format(cents / 100);
 }
 
+// Same palette and fonts as the website (frontend/src/index.css)
+const COLORS = {
+  text: '#141414',
+  muted: '#6e6a6c',
+  border: '#f1e3ea',
+  pink: '#f7acd9',
+  pinkSoft: '#fdeef6',
+  surfaceAlt: '#fff7fb',
+  footerText: '#d8d4d6',
+};
+const FONT_BODY = "'Outfit','Helvetica Neue',Helvetica,Arial,sans-serif";
+const FONT_DISPLAY = "'Playfair Display',Georgia,'Times New Roman',serif";
+
 function layout(title, bodyHtml) {
+  const { salon } = config;
+  const contact = [salon.address, salon.phone, salon.email].filter(Boolean).map(escapeHtml).join(' &middot; ');
   return `<!doctype html>
 <html>
-  <body style="margin:0;padding:24px;background:#f6f3f1;font-family:Arial,Helvetica,sans-serif;color:#2d2a28;">
-    <table role="presentation" width="100%" style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;">
-      <tr><td style="background:#8c4a5c;color:#ffffff;padding:20px 24px;font-size:20px;font-weight:bold;">
-        ${escapeHtml(config.salon.name)}
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600&family=Playfair+Display:ital,wght@0,600;1,600&display=swap" rel="stylesheet" />
+  </head>
+  <body style="margin:0;padding:24px 12px;background:${COLORS.surfaceAlt};font-family:${FONT_BODY};color:${COLORS.text};line-height:1.55;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid ${COLORS.border};border-radius:14px;overflow:hidden;">
+      <tr><td style="padding:24px 24px 18px;text-align:center;border-bottom:4px solid ${COLORS.pink};">
+        <a href="${escapeHtml(config.publicUrl)}" style="text-decoration:none;">
+          <img src="${escapeHtml(`${config.publicUrl}/email-logo.png`)}" width="240" alt="${escapeHtml(salon.name)}"
+            style="display:block;margin:0 auto;width:240px;max-width:100%;height:auto;border:0;font-family:${FONT_DISPLAY};font-size:22px;font-weight:600;color:${COLORS.text};" />
+        </a>
       </td></tr>
-      <tr><td style="padding:24px;">
-        <h2 style="margin:0 0 16px;font-size:18px;">${escapeHtml(title)}</h2>
+      <tr><td style="padding:28px 24px;">
+        <h2 style="margin:0 0 16px;font-family:${FONT_DISPLAY};font-size:24px;font-weight:600;line-height:1.25;color:${COLORS.text};">${escapeHtml(title)}</h2>
         ${bodyHtml}
+      </td></tr>
+      <tr><td style="background:${COLORS.text};color:${COLORS.footerText};padding:20px 24px;font-size:12px;line-height:1.6;text-align:center;">
+        <div style="font-family:${FONT_DISPLAY};font-size:16px;color:#ffffff;margin-bottom:4px;">${escapeHtml(salon.name)}</div>
+        ${contact}<br/>
+        <a href="${escapeHtml(config.publicUrl)}" style="color:${COLORS.pink};text-decoration:none;">${escapeHtml(config.publicUrl.replace(/^https?:\/\//, ''))}</a>
       </td></tr>
     </table>
   </body>
@@ -121,14 +149,14 @@ function transferBlock(booking) {
       `${bank.name} · ${bank.accountNumber} · ${bank.accountName}`,
     ]),
   ];
-  return `<h3 style="margin:24px 0 8px;font-size:15px;">Pay your deposit by bank transfer</h3>
+  return `<h3 style="margin:24px 0 8px;font-family:${FONT_DISPLAY};font-size:17px;font-weight:600;">Pay your deposit by bank transfer</h3>
     <p style="margin:0 0 8px;font-size:14px;">Your booking is held for you, and the salon will confirm it once your deposit arrives.
       ${banks.length > 1 ? 'Pay into any one of these accounts.' : ''}</p>
-    <table role="presentation" width="100%" style="border-collapse:collapse;font-size:14px;background:#fdeef6;border-radius:8px;">
+    <table role="presentation" width="100%" style="border-collapse:collapse;font-size:14px;background:${COLORS.pinkSoft};border-radius:8px;">
       ${rows
         .map(
           ([label, value]) => `<tr>
-            <td style="padding:8px 12px;color:#7a716c;width:130px;">${escapeHtml(label)}</td>
+            <td style="padding:8px 12px;color:${COLORS.muted};width:130px;">${escapeHtml(label)}</td>
             <td style="padding:8px 12px;font-weight:bold;">${escapeHtml(value)}</td>
           </tr>`
         )
@@ -191,12 +219,12 @@ function detailsTable(booking) {
   rows.push(...depositRows(booking));
   if (booking.notes) rows.push(['Notes', booking.notes]);
 
-  return `<table role="presentation" width="100%" style="border-collapse:collapse;font-size:14px;">
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;font-size:14px;background:${COLORS.surfaceAlt};border:1px solid ${COLORS.border};border-radius:12px;">
     ${rows
       .map(
-        ([label, value]) => `<tr>
-          <td style="padding:8px 0;color:#7a716c;width:110px;vertical-align:top;">${escapeHtml(label)}</td>
-          <td style="padding:8px 0;font-weight:bold;">${escapeHtml(value)}</td>
+        ([label, value], i) => `<tr>
+          <td style="padding:10px 16px;color:${COLORS.muted};width:120px;vertical-align:top;${i ? `border-top:1px solid ${COLORS.border};` : ''}">${escapeHtml(label)}</td>
+          <td style="padding:10px 16px;font-weight:600;${i ? `border-top:1px solid ${COLORS.border};` : ''}">${escapeHtml(value)}</td>
         </tr>`
       )
       .join('')}
@@ -210,14 +238,14 @@ function manageUrl(booking) {
 
 function button(href, label) {
   return `<p style="margin:24px 0 0;">
-    <a href="${escapeHtml(href)}" style="display:inline-block;background:#8c4a5c;color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:bold;font-size:14px;">${escapeHtml(label)}</a>
+    <a href="${escapeHtml(href)}" style="display:inline-block;background:${COLORS.pink};color:${COLORS.text};text-decoration:none;padding:12px 26px;border-radius:999px;font-weight:600;font-size:15px;">${escapeHtml(label)}</a>
   </p>`;
 }
 
 function clientBlock(booking) {
-  return `<h3 style="margin:24px 0 8px;font-size:15px;">Client</h3>
+  return `<h3 style="margin:24px 0 8px;font-family:${FONT_DISPLAY};font-size:17px;font-weight:600;">Client</h3>
      <p style="margin:0;font-size:14px;line-height:1.6;">
-       ${escapeHtml(booking.client_name)}${booking.client_id ? '' : ' <span style="color:#7a716c;">(guest)</span>'}<br/>
+       ${escapeHtml(booking.client_name)}${booking.client_id ? '' : ` <span style="color:${COLORS.muted};">(guest)</span>`}<br/>
        ${escapeHtml(booking.client_email)}<br/>
        ${escapeHtml(booking.client_phone || 'No phone provided')}
      </p>`;
@@ -264,7 +292,7 @@ function buildClientEmail(booking) {
      ${detailsTable(booking)}
      ${awaitingTransfer(booking) ? transferBlock(booking) : ''}
      ${button(manageUrl(booking), 'View, reschedule or cancel')}
-     <p style="margin:16px 0 0;font-size:13px;color:#7a716c;">
+     <p style="margin:16px 0 0;font-size:13px;color:${COLORS.muted};">
        Keep this email: the button above is your private link to manage this booking. You can also find it
        any time at ${escapeHtml(`${config.publicUrl}/booking/${booking.id}`)} with your email address.
        ${booking.deposit_cents ? escapeHtml(cancellationPolicy()) : ''}
@@ -292,28 +320,68 @@ function buildClientEmail(booking) {
   };
 }
 
-// Sent to the customer when the salon changes the status of their booking
+// Sent to the customer whenever the salon changes the status of their booking
 const STATUS_MESSAGES = {
+  pending: {
+    title: 'Your appointment is pending',
+    subject: 'Booking pending',
+    intro: "your appointment is pending again. We'll email you as soon as the salon confirms it.",
+  },
   confirmed: {
     title: 'Your appointment is confirmed',
     subject: 'Booking confirmed',
-    intro: 'Good news: the salon has confirmed your appointment. See you soon!',
+    intro: 'good news: the salon has confirmed your appointment. See you soon!',
   },
   cancelled: {
     title: 'Your appointment was cancelled',
     subject: 'Booking cancelled',
     intro:
-      'Unfortunately the salon had to cancel this appointment. Any deposit you paid is refunded in full. ' +
+      'unfortunately the salon had to cancel this appointment. Any deposit you paid is refunded in full. ' +
       'Reply to this email or book another time.',
+    rebook: true,
+  },
+  completed: {
+    title: 'Thanks for visiting us',
+    subject: 'Appointment completed',
+    intro: 'thank you for visiting! We hope you love your new look. Book your next appointment any time.',
+    rebook: true,
   },
 };
 
-function buildStatusEmail(booking) {
-  const msg = STATUS_MESSAGES[booking.status];
-  const action =
-    booking.status === 'cancelled'
-      ? button(`${config.publicUrl}/book?serviceId=${booking.service_id}`, 'Book another time')
-      : button(manageUrl(booking), 'View, reschedule or cancel');
+// Sent to the customer when the salon records money moving outside Paystack
+const DEPOSIT_MESSAGES = {
+  received: {
+    title: 'We received your deposit',
+    subject: 'Deposit received',
+    intro: (booking) =>
+      `we've received your ${formatPrice(booking.deposit_cents)} deposit. Thank you!` +
+      (booking.status === 'pending' ? " We'll email you when the salon confirms your appointment." : ''),
+  },
+  refunded: {
+    title: 'Your refund has been sent',
+    subject: 'Refund sent',
+    intro: (booking) =>
+      `we've sent your ${formatPrice(booking.refund_cents)} refund. It can take a few working days to arrive.`,
+  },
+};
+
+// The client paid after their slot was released, so the booking stays cancelled and the deposit goes back
+const LATE_PAYMENT_MESSAGE = {
+  title: 'Your payment came in too late',
+  subject: 'Payment refunded',
+  intro:
+    'your payment arrived after we could no longer hold this time slot, so the booking was released ' +
+    'and your deposit is being refunded in full. Please book another time.',
+  rebook: true,
+};
+
+function buildUpdateEmail(booking, msg) {
+  const intro = typeof msg.intro === 'function' ? msg.intro(booking) : msg.intro;
+  const rebookUrl = `${config.publicUrl}/book?serviceId=${booking.service_id}`;
+  const rebook = msg.rebook || booking.status === 'cancelled';
+  const action = rebook
+    ? button(rebookUrl, 'Book another time')
+    : button(manageUrl(booking), 'View, reschedule or cancel');
 
   return {
     from: config.email.from,
@@ -322,18 +390,18 @@ function buildStatusEmail(booking) {
     subject: `${msg.subject}: ${booking.service_name} on ${formatDateTime(booking.start_time)}`,
     html: layout(
       msg.title,
-      `<p style="margin:0 0 16px;">Hi ${escapeHtml(booking.client_name)}, ${escapeHtml(msg.intro)}</p>
+      `<p style="margin:0 0 16px;">Hi ${escapeHtml(booking.client_name)}, ${escapeHtml(intro)}</p>
        ${detailsTable(booking)}
        ${action}`
     ),
     text: [
-      `Hi ${booking.client_name}, ${msg.intro}`,
+      `Hi ${booking.client_name}, ${intro}`,
       `Booking #${booking.id}`,
       `Service: ${booking.service_name}`,
       `When: ${formatDateTime(booking.start_time)}`,
       pickupText(booking),
       depositText(booking),
-      booking.status === 'cancelled' ? '' : `Manage your booking: ${manageUrl(booking)}`,
+      rebook ? `Book another time: ${rebookUrl}` : `Manage your booking: ${manageUrl(booking)}`,
     ].join('\n'),
   };
 }
@@ -475,10 +543,23 @@ async function sendBookingEmails(booking) {
   ]);
 }
 
-/** Tells the customer the salon confirmed or cancelled their booking. Other statuses send nothing. */
+/** Tells the customer the salon changed the status of their booking */
 async function sendStatusEmail(booking) {
   if (!STATUS_MESSAGES[booking.status]) return false;
-  await transporter.sendMail(buildStatusEmail(booking));
+  await transporter.sendMail(buildUpdateEmail(booking, STATUS_MESSAGES[booking.status]));
+  return true;
+}
+
+/** Tells the customer the salon received their transfer deposit, or sent their refund */
+async function sendDepositEmail(booking, action) {
+  if (!DEPOSIT_MESSAGES[action]) return false;
+  await transporter.sendMail(buildUpdateEmail(booking, DEPOSIT_MESSAGES[action]));
+  return true;
+}
+
+/** Tells the customer their payment came in after the slot was released and is being refunded */
+async function sendLatePaymentEmail(booking) {
+  await transporter.sendMail(buildUpdateEmail(booking, LATE_PAYMENT_MESSAGE));
   return true;
 }
 
@@ -507,7 +588,7 @@ async function sendPasswordResetEmail(user, resetUrl) {
       `<p style="margin:0 0 16px;">Hi ${escapeHtml(user.full_name)}, we received a request to reset your password.
          Click the button below to choose a new one. The link works once and expires in 1 hour.</p>
        ${button(resetUrl, 'Choose a new password')}
-       <p style="margin:16px 0 0;font-size:13px;color:#7a716c;">
+       <p style="margin:16px 0 0;font-size:13px;color:${COLORS.muted};">
          Didn't ask for this? You can ignore this email; your password stays the same.
        </p>`
     ),
@@ -529,10 +610,10 @@ async function sendContactMessage({ name, email, phone, message }) {
     html: layout(
       'New message from the website',
       `<p style="margin:0 0 16px;white-space:pre-wrap;">${escapeHtml(message)}</p>
-       <p style="margin:0;font-size:14px;line-height:1.6;color:#7a716c;">
+       <p style="margin:0;font-size:14px;line-height:1.6;color:${COLORS.muted};">
          ${escapeHtml(name)}<br/>${escapeHtml(email)}${phone ? `<br/>${escapeHtml(phone)}` : ''}
        </p>
-       <p style="margin:16px 0 0;font-size:13px;color:#7a716c;">Reply to this email to answer ${escapeHtml(name)}.</p>`
+       <p style="margin:16px 0 0;font-size:13px;color:${COLORS.muted};">Reply to this email to answer ${escapeHtml(name)}.</p>`
     ),
     text: [message, '', `${name} <${email}>${phone ? ` ${phone}` : ''}`].join('\n'),
   });
@@ -550,6 +631,8 @@ async function verifyEmailTransport() {
 module.exports = {
   sendBookingEmails,
   sendStatusEmail,
+  sendDepositEmail,
+  sendLatePaymentEmail,
   sendRescheduleEmails,
   sendCustomerCancelledEmail,
   sendPasswordResetEmail,

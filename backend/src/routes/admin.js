@@ -3,7 +3,7 @@ const db = require('../db');
 const config = require('../config');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const bookingService = require('../services/bookingService');
-const { sendStatusEmail } = require('../services/email');
+const { sendStatusEmail, sendDepositEmail } = require('../services/email');
 const { sendConfirmationWhatsApp, confirmationLink } = require('../services/whatsapp');
 const { refundDeposit } = require('../services/payments');
 const { getBusinessHours, setBusinessHours } = require('../services/businessHours');
@@ -82,7 +82,7 @@ router.patch(
       booking = await refundDeposit(booking, booking.deposit_cents);
     }
 
-    // Let the customer know when the salon confirms or cancels. Committed already, so send failures are non-fatal.
+    // Let the customer know about every status change. Committed already, so send failures are non-fatal.
     let emailSent = false;
     let whatsapp = { sent: false };
     if (booking.status !== previousStatus) {
@@ -112,7 +112,12 @@ router.patch(
       appointmentId: parseId(req.params.id),
       action: req.body.action,
     });
-    res.json({ booking });
+    // Committed already, so a send failure is non-fatal
+    const emailSent = await sendDepositEmail(booking, req.body.action).catch((err) => {
+      console.error(`Booking #${booking.id} deposit saved but email sending failed:`, err.message);
+      return false;
+    });
+    res.json({ booking, emailSent });
   })
 );
 

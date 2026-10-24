@@ -3,7 +3,7 @@ const config = require('../config');
 const db = require('../db');
 const { HttpError } = require('../utils/http');
 const { markDepositPaid } = require('./bookingService');
-const { sendBookingEmails } = require('./email');
+const { sendBookingEmails, sendLatePaymentEmail } = require('./email');
 
 const PAYSTACK_API = 'https://api.paystack.co';
 
@@ -103,6 +103,10 @@ async function completeDepositPayment(reference) {
   if (lateForSlot) {
     // The slot was released before the money came in: give it all back
     booking = await refundDeposit(booking, booking.deposit_cents);
+    emailsSent = await sendLatePaymentEmail(booking).catch((err) => {
+      console.error(`Booking #${booking.id} late payment refunded but email sending failed:`, err.message);
+      return false;
+    });
   } else if (newlyPaid) {
     emailsSent = await sendBookingEmails(booking)
       .then(() => true)
