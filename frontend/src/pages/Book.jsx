@@ -19,6 +19,8 @@ import {
   formatTime,
   serviceDuration,
   servicePrice,
+  firstBookableDay,
+  formatClock,
   todayInZone,
   weekdayOf,
 } from '../utils/format';
@@ -31,7 +33,9 @@ export default function Book() {
   const location = useLocation();
   const [searchParams] = useSearchParams();
 
-  const today = todayInZone(salon.timezone);
+  // After the same-day cutoff this is tomorrow
+  const today = firstBookableDay(salon);
+  const sameDayClosed = today !== todayInZone(salon.timezone);
   // Coming back from logging in / signing up mid-booking: pick up where the client left off.
   // A service in the URL (e.g. a card on the home page) means a fresh booking instead.
   const [draft] = useState(() => (searchParams.get('serviceId') ? null : loadBookingDraft()));
@@ -279,6 +283,12 @@ export default function Book() {
             />
           </label>
         </div>
+        {sameDayClosed && (
+          <p className="muted small">
+            Same-day bookings close at {formatClock(`${salon.sameDayCutoffHour}:00`)}. The earliest you can book now is
+            tomorrow.
+          </p>
+        )}
 
         {selectedService && (
           <div className="book-service">

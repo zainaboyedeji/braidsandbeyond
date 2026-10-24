@@ -12,7 +12,7 @@ import {
   formatPickup,
   formatPrice,
   formatTime,
-  todayInZone,
+  firstBookableDay,
 } from '../utils/format';
 
 const BOOKING_WINDOW_DAYS = 60;
@@ -21,7 +21,8 @@ const BOOKING_WINDOW_DAYS = 60;
 export default function ManageBooking() {
   const { token } = useParams();
   const { salon } = useApp();
-  const today = todayInZone(salon.timezone);
+  // After the same-day cutoff this is tomorrow
+  const today = firstBookableDay(salon);
 
   const [booking, setBooking] = useState(null);
   const [refundIfCancelled, setRefundIfCancelled] = useState(0);

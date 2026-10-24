@@ -45,7 +45,7 @@ app.get('/api/health', async (req, res) => {
 app.get(
   '/api/config',
   asyncHandler(async (req, res) => {
-    const { name, phone, address, email, currency, timezone, slotIntervalMinutes } = config.salon;
+    const { name, phone, address, email, currency, timezone, slotIntervalMinutes, sameDayCutoffHour } = config.salon;
     const whatsappNumber = phone ? toWhatsAppNumber(phone) : null;
     const { enabled, methods, banks, depositPercent, holdMinutes, freeCancellationHours, lateCancelRefundPercent } =
       config.payments;
@@ -69,6 +69,7 @@ app.get(
       currency,
       timezone,
       slotIntervalMinutes,
+      sameDayCutoffHour,
       hours,
       pickupVehicles,
       deposits,

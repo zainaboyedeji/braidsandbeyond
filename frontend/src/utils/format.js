@@ -31,6 +31,15 @@ export function todayInZone(timeZone) {
   }).format(new Date());
 }
 
+// The earliest day a client can book: today, or tomorrow once same-day bookings have closed
+export function firstBookableDay(salon) {
+  const today = todayInZone(salon.timezone);
+  const hour = Number(
+    new Intl.DateTimeFormat('en-GB', { timeZone: salon.timezone, hour: '2-digit', hourCycle: 'h23' }).format(new Date())
+  );
+  return hour < (salon.sameDayCutoffHour ?? 24) ? today : addDays(today, 1);
+}
+
 export function addDays(ymd, days) {
   const [y, m, d] = ymd.split('-').map(Number);
   const date = new Date(Date.UTC(y, m - 1, d + days));

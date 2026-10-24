@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
+import { formatClock } from '../utils/format';
 
 // Salon policies and terms. The numbers come from the salon's settings, so this page always matches
 // what the booking system actually does.
@@ -49,6 +50,12 @@ export default function Policies() {
         <h2>Booking and confirmation</h2>
         <ul>
           <li>Book online by choosing a service and an available time.</li>
+          {salon.sameDayCutoffHour < 24 && (
+            <li>
+              Same-day bookings can be made until {formatClock(`${salon.sameDayCutoffHour}:00`)}. After that, the earliest
+              you can book is the next day.
+            </li>
+          )}
           <li>
             Every booking is a request until the salon confirms it. We'll email you, and may also message you on
             WhatsApp, as soon as it's confirmed.

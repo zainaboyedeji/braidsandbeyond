@@ -88,6 +88,8 @@ const config = {
     currency: (process.env.SALON_CURRENCY || 'USD').toUpperCase(),
     timezone,
     slotIntervalMinutes: toInt('SLOT_INTERVAL_MINUTES', 15, { min: 5, max: 120 }),
+    // Bookings for today close at this hour (salon time); after it the earliest bookable day is tomorrow
+    sameDayCutoffHour: toInt('SAME_DAY_CUTOFF_HOUR', 12, { min: 0, max: 24 }),
   },
 
   email: {

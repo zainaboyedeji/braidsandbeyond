@@ -127,6 +127,12 @@ function parseStart(startTime) {
   return start;
 }
 
+// "12:00 PM" for the same-day cutoff hour
+function cutoffLabel() {
+  const h = config.salon.sameDayCutoffHour % 24;
+  return `${h % 12 || 12}:00 ${h >= 12 ? 'PM' : 'AM'}`;
+}
+
 /**
  * Checks that [start, start + durationMinutes) is a bookable, free slot and returns its end.
  * Must run inside a transaction that already holds BOOKING_LOCK_KEY.
@@ -141,6 +147,8 @@ async function assertSlotBookable(client, { durationMinutes, start, excludeId = 
   const hoursResult = await client.query(
     `SELECT
        $1::timestamptz > NOW()                                         AS in_future,
+       ($1::timestamptz AT TIME ZONE $3)::date > (NOW() AT TIME ZONE $3)::date
+         OR EXTRACT(HOUR FROM NOW() AT TIME ZONE $3) < $5              AS before_cutoff,
        ($1::timestamptz AT TIME ZONE $3)::date
          = (($2::timestamptz - INTERVAL '1 microsecond') AT TIME ZONE $3)::date AS same_day,
        COALESCE(h.is_open, FALSE)                                      AS is_open,
@@ -151,11 +159,20 @@ async function assertSlotBookable(client, { durationMinutes, start, excludeId = 
        to_char(h.close_time, 'HH24:MI') AS close_time
      FROM (SELECT 1) one
      LEFT JOIN business_hours h ON h.weekday = EXTRACT(DOW FROM ($1::timestamptz AT TIME ZONE $3))`,
-    [start.toISOString(), end.toISOString(), config.salon.timezone, config.salon.slotIntervalMinutes]
+    [
+      start.toISOString(),
+      end.toISOString(),
+      config.salon.timezone,
+      config.salon.slotIntervalMinutes,
+      config.salon.sameDayCutoffHour,
+    ]
   );
   const check = hoursResult.rows[0];
   if (!check.in_future) {
     throw new HttpError(400, 'You cannot book a time in the past');
+  }
+  if (!check.before_cutoff) {
+    throw new HttpError(400, `Same-day bookings close at ${cutoffLabel()}. Please choose another day.`);
   }
   if (!check.is_open) {
     throw new HttpError(400, 'The salon is closed on that day');
@@ -285,6 +302,8 @@ async function getAvailability({ serviceId, variantId = null, date, excludeId = 
      SELECT s.start_time, s.end_time
        FROM slots s
       WHERE s.start_time > NOW()
+        -- Same-day bookings close at the cutoff hour (salon time)
+        AND ($1::date > (NOW() AT TIME ZONE $2)::date OR EXTRACT(HOUR FROM NOW() AT TIME ZONE $2) < $6)
         AND NOT EXISTS (
           SELECT 1
             FROM appointments a
@@ -293,7 +312,7 @@ async function getAvailability({ serviceId, variantId = null, date, excludeId = 
              AND tstzrange(a.start_time, a.end_time, '[)') && tstzrange(s.start_time, s.end_time, '[)')
         )
       ORDER BY s.start_time`,
-    [date, config.salon.timezone, minutes, config.salon.slotIntervalMinutes, excludeId]
+    [date, config.salon.timezone, minutes, config.salon.slotIntervalMinutes, excludeId, config.salon.sameDayCutoffHour]
   );
 
   return {
