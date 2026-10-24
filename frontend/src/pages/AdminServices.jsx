@@ -29,6 +29,8 @@ export default function AdminServices() {
   const [imagePreview, setImagePreview] = useState(null);
   const [currentImage, setCurrentImage] = useState(null);
   const [photos, setPhotos] = useState([]);
+  // Gallery photos picked while adding a new service: previewed now, uploaded once the service is saved
+  const [pendingPhotos, setPendingPhotos] = useState([]);
   const [variantRows, setVariantRows] = useState([]);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -107,6 +109,7 @@ export default function AdminServices() {
     const files = [...e.target.files];
     e.target.value = '';
     if (files.length === 0) return;
+    const existing = editingId ? photos.length : pendingPhotos.length;
     if (files.some((f) => !IMAGE_TYPES.includes(f.type))) {
       setFormError('Photos must be JPG, PNG or WebP files');
       return;
@@ -115,13 +118,23 @@ export default function AdminServices() {
       setFormError(`Each photo must be under ${MAX_IMAGE_MB} MB`);
       return;
     }
-    if (photos.length + files.length > MAX_GALLERY_PHOTOS) {
-      setFormError(`A service can have up to ${MAX_GALLERY_PHOTOS} gallery photos (it has ${photos.length}).`);
+    if (existing + files.length > MAX_GALLERY_PHOTOS) {
+      setFormError(`A service can have up to ${MAX_GALLERY_PHOTOS} gallery photos (it has ${existing}).`);
       return;
     }
+    setFormError('');
+
+    // New service: keep them until it's saved
+    if (!editingId) {
+      setPendingPhotos((prev) => [
+        ...prev,
+        ...files.map((file) => ({ key: nextVariantKey++, file, url: URL.createObjectURL(file) })),
+      ]);
+      return;
+    }
+
     const formData = new FormData();
     files.forEach((f) => formData.append('photos', f));
-    setFormError('');
     setPhotoBusy(true);
     try {
       const data = await api.upload(`/services/${editingId}/photos`, formData);
@@ -132,6 +145,21 @@ export default function AdminServices() {
     } finally {
       setPhotoBusy(false);
     }
+  }
+
+  function removePendingPhoto(key) {
+    setPendingPhotos((prev) => {
+      const photo = prev.find((p) => p.key === key);
+      if (photo) URL.revokeObjectURL(photo.url);
+      return prev.filter((p) => p.key !== key);
+    });
+  }
+
+  function clearPendingPhotos() {
+    setPendingPhotos((prev) => {
+      prev.forEach((p) => URL.revokeObjectURL(p.url));
+      return [];
+    });
   }
 
   async function removePhoto(photo) {
@@ -189,6 +217,7 @@ export default function AdminServices() {
     setForm(EMPTY_FORM);
     setCurrentImage(null);
     setPhotos([]);
+    clearPendingPhotos();
     setVariantRows([]);
     setFormError('');
     clearChosenImage();
@@ -256,6 +285,20 @@ export default function AdminServices() {
           startEdit(data.service);
           await load();
           setFormError(`Service saved, but the image upload failed: ${err.message}`);
+          return;
+        }
+      }
+      if (pendingPhotos.length > 0) {
+        const formData = new FormData();
+        pendingPhotos.forEach((p) => formData.append('photos', p.file));
+        try {
+          await api.upload(`/services/${data.service.id}/photos`, formData);
+        } catch (err) {
+          // Service saved; reopen it in edit mode, where the gallery can be added to again
+          await load();
+          startEdit(data.service);
+          clearPendingPhotos();
+          setFormError(`Service saved, but the gallery photos didn't upload: ${err.message}. Please add them again.`);
           return;
         }
       }
@@ -450,7 +493,10 @@ export default function AdminServices() {
           </div>
           <fieldset className="gallery-field">
             <legend>
-              Gallery <span className="muted">({photos.length} of {MAX_GALLERY_PHOTOS} photos)</span>
+              Gallery{' '}
+              <span className="muted">
+                ({editingId ? photos.length : pendingPhotos.length} of {MAX_GALLERY_PHOTOS} photos)
+              </span>
             </legend>
             {editingId ? (
               <>
@@ -492,7 +538,43 @@ export default function AdminServices() {
                 <p className="muted small">Clients see these after the cover when they tap the service's photo.</p>
               </>
             ) : (
-              <p className="muted small">Save the service first, then edit it to add gallery photos.</p>
+              <>
+                {pendingPhotos.length > 0 && (
+                  <div className="gallery-admin">
+                    {pendingPhotos.map((p) => (
+                      <figure key={p.key}>
+                        <img src={p.url} alt="" />
+                        <figcaption>
+                          <button
+                            type="button"
+                            onClick={() => removePendingPhoto(p.key)}
+                            disabled={saving}
+                            aria-label="Remove photo"
+                          >
+                            Remove
+                          </button>
+                        </figcaption>
+                      </figure>
+                    ))}
+                  </div>
+                )}
+                {pendingPhotos.length < MAX_GALLERY_PHOTOS && (
+                  <label className="btn btn-outline btn-sm gallery-add">
+                    + Add photos
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      multiple
+                      onChange={addPhotos}
+                      disabled={saving}
+                      hidden
+                    />
+                  </label>
+                )}
+                <p className="muted small">
+                  Clients see these after the cover when they tap the service's photo. They upload when you save.
+                </p>
+              </>
             )}
           </fieldset>
           <div className="actions">
