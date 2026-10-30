@@ -412,16 +412,6 @@ h3 {
   color: var(--text);
 }
 
-.photo-placeholder-note {
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.7);
-}
-
 .photo-placeholder-compact {
   gap: 8px;
   padding: 10px;
@@ -430,12 +420,6 @@ h3 {
 .photo-placeholder.photo-placeholder-compact .photo-placeholder-logo {
   width: 48px;
   height: 48px;
-}
-
-.photo-placeholder-compact .photo-placeholder-note {
-  font-size: 0.6rem;
-  letter-spacing: 0.08em;
-  padding: 3px 8px;
 }
 
 .service-image-placeholder {
