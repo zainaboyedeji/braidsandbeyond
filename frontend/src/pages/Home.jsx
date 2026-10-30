@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { assetUrl, cachedServices, fetchServices } from '../api/client';
 import PhotoGallery, { servicePhotoPaths } from '../components/PhotoGallery';
+import PhotoPlaceholder from '../components/PhotoPlaceholder';
 import { useApp } from '../context/AppContext';
 import { WEEKDAYS, formatClock, serviceDuration, servicePrice } from '../utils/format';
 
@@ -78,9 +79,7 @@ export default function Home() {
                   )}
                 </div>
               ) : (
-                <div className="service-image-placeholder" aria-hidden="true">
-                  {service.name.charAt(0)}
-                </div>
+                <PhotoPlaceholder name={service.name} className="service-image-placeholder" />
               )}
               <h3>{service.name}</h3>
               {service.description && (

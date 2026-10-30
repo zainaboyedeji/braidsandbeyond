@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { api, assetUrl, cachedServices, fetchServices } from '../api/client';
 import PhotoGallery, { servicePhotoPaths } from '../components/PhotoGallery';
+import PhotoPlaceholder from '../components/PhotoPlaceholder';
 import TransferDetails from '../components/TransferDetails';
 import { useApp } from '../context/AppContext';
 import { trackBookingCompleted } from '../utils/analytics';
@@ -292,7 +293,7 @@ export default function Book() {
 
         {selectedService && (
           <div className="book-service">
-            {selectedService.image_path && (
+            {selectedService.image_path ? (
               <button
                 type="button"
                 className="book-service-photo"
@@ -301,6 +302,8 @@ export default function Book() {
               >
                 <img src={assetUrl(selectedService.image_path)} alt={selectedService.name} />
               </button>
+            ) : (
+              <PhotoPlaceholder name={selectedService.name} compact className="book-service-placeholder" />
             )}
             <div>
               <strong>{selectedService.name}</strong>
