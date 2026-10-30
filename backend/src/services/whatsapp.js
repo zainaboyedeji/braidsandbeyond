@@ -68,9 +68,43 @@ function confirmationLink(booking) {
 }
 
 /**
- * Sends the "booking confirmed" template through the WhatsApp Cloud API.
- * Business-initiated messages must use a template Meta has approved; its body takes these
- * parameters in order: {{1}} name, {{2}} service, {{3}} date & time, {{4}} booking #, {{5}} manage link.
+ * Sends an approved template through the WhatsApp Cloud API; `params` fill the body's {{1}}, {{2}}…
+ * Business-initiated messages must use a template Meta has approved. Throws when Meta rejects the message.
+ */
+async function sendTemplate(to, templateName, params) {
+  const res = await fetch(
+    `https://graph.facebook.com/${config.whatsapp.apiVersion}/${config.whatsapp.phoneNumberId}/messages`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${config.whatsapp.token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        to,
+        type: 'template',
+        template: {
+          name: templateName,
+          language: { code: config.whatsapp.templateLanguage },
+          components: [{ type: 'body', parameters: params.map((text) => ({ type: 'text', text })) }],
+        },
+      }),
+      signal: AbortSignal.timeout(10000),
+    }
+  );
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const { message, code, error_data: data } = body.error || {};
+    const details = data?.details ? ` (${data.details})` : '';
+    throw new Error(`WhatsApp API ${res.status}${code ? ` #${code}` : ''}: ${message || res.statusText}${details}`);
+  }
+}
+
+/**
+ * Sends the "booking confirmed" template to the client. Its body takes these parameters in order:
+ * {{1}} name, {{2}} service, {{3}} date & time, {{4}} booking #, {{5}} manage link.
  * Returns { sent, to } or, when nothing was sent, { sent: false, reason } so the admin can see why.
  * Throws when Meta rejects the message.
  */
@@ -87,39 +121,41 @@ async function sendConfirmationWhatsApp(booking) {
     };
   }
 
-  const res = await fetch(
-    `https://graph.facebook.com/${config.whatsapp.apiVersion}/${config.whatsapp.phoneNumberId}/messages`,
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${config.whatsapp.token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        messaging_product: 'whatsapp',
-        to,
-        type: 'template',
-        template: {
-          name: config.whatsapp.templateName,
-          language: { code: config.whatsapp.templateLanguage },
-          components: [{ type: 'body', parameters: messageParams(booking).map((text) => ({ type: 'text', text })) }],
-        },
-      }),
-      signal: AbortSignal.timeout(10000),
-    }
-  );
-
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    const { message, code, error_data: data } = body.error || {};
-    const details = data?.details ? ` (${data.details})` : '';
-    throw new Error(`WhatsApp API ${res.status}${code ? ` #${code}` : ''}: ${message || res.statusText}${details}`);
-  }
+  await sendTemplate(to, config.whatsapp.templateName, messageParams(booking));
   return { sent: true, to };
+}
+
+/**
+ * Alerts the salon's phone about a new booking request, with the "new booking" template. Its body takes:
+ * {{1}} client name, {{2}} service, {{3}} date & time, {{4}} booking #, {{5}} client phone.
+ * Returns { sent, to } or { sent: false, reason }. Throws when Meta rejects the message.
+ */
+async function sendAdminBookingWhatsApp(booking) {
+  const { admin } = config.whatsapp;
+  if (!config.whatsapp.enabled || !admin.phone || !admin.templateName) {
+    return { sent: false, reason: 'salon alerts are not set up (WHATSAPP_ADMIN_PHONE / WHATSAPP_ADMIN_TEMPLATE_NAME)' };
+  }
+  const to = toWhatsAppNumber(admin.phone);
+  if (!to) return { sent: false, reason: `WHATSAPP_ADMIN_PHONE "${admin.phone}" is not a valid phone number` };
+
+  const [name, service, when, id] = messageParams(booking);
+  await sendTemplate(to, admin.templateName, [name, service, when, id, booking.client_phone || 'no phone given']);
+  return { sent: true, to };
+}
+
+/** Fire-and-forget wrapper: a failed alert is logged and never blocks the booking */
+function notifyAdminOfBooking(booking) {
+  sendAdminBookingWhatsApp(booking)
+    .then((result) => {
+      if (result.reason) console.warn(`Booking #${booking.id}: no salon WhatsApp alert, ${result.reason}`);
+    })
+    .catch((err) => console.error(`Booking #${booking.id}: salon WhatsApp alert failed:`, err.message));
 }
 
 module.exports = {
   toWhatsAppNumber,
   confirmationLink,
   sendConfirmationWhatsApp,
+  sendAdminBookingWhatsApp,
+  notifyAdminOfBooking,
 };

@@ -4,6 +4,7 @@ const db = require('../db');
 const { HttpError } = require('../utils/http');
 const { markDepositPaid } = require('./bookingService');
 const { sendBookingEmails, sendLatePaymentEmail } = require('./email');
+const { notifyAdminOfBooking } = require('./whatsapp');
 
 const PAYSTACK_API = 'https://api.paystack.co';
 
@@ -108,6 +109,7 @@ async function completeDepositPayment(reference) {
       return false;
     });
   } else if (newlyPaid) {
+    notifyAdminOfBooking(booking);
     emailsSent = await sendBookingEmails(booking)
       .then(() => true)
       .catch((err) => {

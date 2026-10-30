@@ -131,6 +131,11 @@ const config = {
     templateLanguage: process.env.WHATSAPP_TEMPLATE_LANGUAGE || 'en',
     // Added to local numbers like 0801 234 5678 (no "+", no leading zeros)
     defaultCountryCode: (process.env.WHATSAPP_DEFAULT_COUNTRY_CODE || '234').replace(/\D/g, ''),
+    // Optional: also alert the salon's own WhatsApp about each new booking request
+    admin: {
+      phone: process.env.WHATSAPP_ADMIN_PHONE,
+      templateName: process.env.WHATSAPP_ADMIN_TEMPLATE_NAME,
+    },
   },
 };
 

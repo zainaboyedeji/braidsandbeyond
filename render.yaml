@@ -90,3 +90,8 @@ services:
         value: braidsandbeyonds_bookingconfirmed
       - key: WHATSAPP_TEMPLATE_LANGUAGE
         value: en
+      # Optional: WhatsApp alert to the salon for each new booking (needs its own approved template)
+      - key: WHATSAPP_ADMIN_PHONE
+        sync: false
+      - key: WHATSAPP_ADMIN_TEMPLATE_NAME
+        value: braidsandbeyonds_newbooking

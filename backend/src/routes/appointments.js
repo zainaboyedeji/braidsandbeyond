@@ -5,6 +5,7 @@ const { sendBookingEmails, sendRescheduleEmails, sendCustomerCancelledEmail } = 
 const bookingService = require('../services/bookingService');
 const { startDepositPayment, refundDeposit } = require('../services/payments');
 const { parsePickup } = require('../services/pickup');
+const { notifyAdminOfBooking } = require('../services/whatsapp');
 const config = require('../config');
 const { EMAIL_RE, HttpError, asyncHandler, parseId, parseContact } = require('../utils/http');
 const { createRateLimiter } = require('../utils/rateLimit');
@@ -84,6 +85,7 @@ router.post(
       return res.status(201).json({ booking, paymentUrl });
     }
 
+    notifyAdminOfBooking(booking);
     const emailsSent = await trySend(`Booking #${booking.id}`, () => sendBookingEmails(booking));
     res.status(201).json({ booking, emailsSent });
   })

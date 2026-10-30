@@ -14,6 +14,13 @@ const server = app.listen(config.port, () => {
       ? '✔ WhatsApp confirmations enabled'
       : '⚠ WhatsApp confirmations off: set WHATSAPP_TOKEN and WHATSAPP_PHONE_NUMBER_ID to enable'
   );
+  if (config.whatsapp.enabled) {
+    console.log(
+      config.whatsapp.admin.phone && config.whatsapp.admin.templateName
+        ? '✔ WhatsApp booking alerts to the salon enabled'
+        : '⚠ WhatsApp booking alerts to the salon off: set WHATSAPP_ADMIN_PHONE and WHATSAPP_ADMIN_TEMPLATE_NAME to enable'
+    );
+  }
   console.log(
     config.payments.enabled
       ? `✔ Deposits enabled (${config.payments.depositPercent}%), paid by: ${config.payments.methods.join(', ')}`
