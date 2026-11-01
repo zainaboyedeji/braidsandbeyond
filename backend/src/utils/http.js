@@ -1,3 +1,5 @@
+const { parsePhoneNumberFromString } = require('libphonenumber-js/mobile');
+
 class HttpError extends Error {
   constructor(status, message) {
     super(message);
@@ -10,14 +12,11 @@ const asyncHandler = (fn) => (req, res, next) => Promise.resolve(fn(req, res, ne
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// Accepts +, spaces, dashes, dots and brackets; requires 7–15 digits (E.164 max)
+// Must be a real mobile number (it's where WhatsApp messages go). Local numbers ("0801…") are read as Nigerian.
+// Returns it in international form ("+234 801 234 5678"), or null.
 function normalizePhone(value) {
-  const phone = String(value || '').trim();
-  const digits = phone.replace(/\D/g, '');
-  if (!/^\+?[\d\s().-]+$/.test(phone) || digits.length < 7 || digits.length > 15) {
-    return null;
-  }
-  return phone;
+  const phone = parsePhoneNumberFromString(String(value || '').trim(), 'NG');
+  return phone?.isValid() ? phone.formatInternational() : null;
 }
 
 /** Validates { fullName, email, phone } and returns the cleaned values, or throws a 400 */
@@ -35,7 +34,7 @@ function parseContact(body) {
     throw new HttpError(400, 'A valid email is required');
   }
   if (!phone) {
-    throw new HttpError(400, 'A valid phone number is required (e.g. +234 801 234 5678)');
+    throw new HttpError(400, 'Enter a valid WhatsApp mobile number with its country code (e.g. +234 801 234 5678)');
   }
   return { fullName, email, phone };
 }

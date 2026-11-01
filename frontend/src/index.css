@@ -1264,6 +1264,42 @@ html {
   outline: 3px solid var(--pink-soft);
 }
 
+/* ---------- WhatsApp number (country code + number) ---------- */
+.form-row label:has(.phone-input) {
+  grid-column: 1 / -1;
+}
+
+.phone-input {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.phone-input-fields {
+  display: flex;
+  gap: 8px;
+}
+
+.phone-input-fields select {
+  width: auto;
+  max-width: 45%;
+  flex-shrink: 0;
+}
+
+.phone-input-hint {
+  font-weight: 400;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.phone-input-ok {
+  color: #2e7d4f;
+}
+
+.phone-input-error {
+  color: #b3261e;
+}
+
 /* ---------- Service photo gallery ---------- */
 .service-image-wrap {
   position: relative;

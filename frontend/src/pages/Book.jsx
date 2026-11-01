@@ -3,6 +3,7 @@ import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { api, assetUrl, cachedServices, fetchServices } from '../api/client';
 import PhotoGallery, { servicePhotoPaths } from '../components/PhotoGallery';
 import PhotoPlaceholder from '../components/PhotoPlaceholder';
+import PhoneInput from '../components/PhoneInput';
 import TransferDetails from '../components/TransferDetails';
 import { useApp } from '../context/AppContext';
 import { trackBookingCompleted } from '../utils/analytics';
@@ -427,15 +428,10 @@ export default function Book() {
                   />
                 </label>
                 <label>
-                  Phone number
-                  <input
-                    type="tel"
+                  WhatsApp number
+                  <PhoneInput
                     value={contact.phone}
-                    onChange={updateContact('phone')}
-                    autoComplete="tel"
-                    placeholder="+234 801 234 5678"
-                    pattern="\+?[0-9\s\(\)\.\-]{7,20}"
-                    title="Enter a valid phone number, e.g. +234 801 234 5678"
+                    onChange={(phone) => setContact((prev) => ({ ...prev, phone }))}
                     required
                   />
                 </label>

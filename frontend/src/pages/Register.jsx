@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import PasswordInput from '../components/PasswordInput';
+import PhoneInput from '../components/PhoneInput';
 import { useApp } from '../context/AppContext';
 
 export default function Register() {
@@ -59,15 +60,10 @@ export default function Register() {
           <input type="email" value={form.email} onChange={update('email')} autoComplete="email" required />
         </label>
         <label>
-          Phone number
-          <input
-            type="tel"
+          WhatsApp number
+          <PhoneInput
             value={form.phone}
-            onChange={update('phone')}
-            autoComplete="tel"
-            placeholder="+234 801 234 5678"
-            pattern="\+?[0-9\s\(\)\.\-]{7,20}"
-            title="Enter a valid phone number, e.g. +234 801 234 5678"
+            onChange={(phone) => setForm((prev) => ({ ...prev, phone }))}
             required
           />
         </label>
