@@ -1280,10 +1280,11 @@ html {
   gap: 8px;
 }
 
+/* A fixed width: sized to its contents, the select would stretch to the longest country name and push the form off phones */
 .phone-input-fields select {
-  width: auto;
-  max-width: 45%;
-  flex-shrink: 0;
+  flex: 0 0 auto;
+  width: 10.5rem;
+  max-width: 50%;
 }
 
 .phone-input-hint {

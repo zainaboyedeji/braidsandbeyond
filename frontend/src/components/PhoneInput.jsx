@@ -12,7 +12,8 @@ function countryOptions() {
   const names = new Intl.DisplayNames(['en'], { type: 'region' });
   const all = getCountries().map((code) => ({
     code,
-    label: `${flag(code)} ${names.of(code) || code} (+${getCountryCallingCode(code)})`,
+    // Code before name, so it still shows when a narrow screen cuts the label short
+    label: `${flag(code)} +${getCountryCallingCode(code)} ${names.of(code) || code}`,
     name: names.of(code) || code,
   }));
   all.sort((a, b) => (a.code === DEFAULT_COUNTRY ? -1 : b.code === DEFAULT_COUNTRY ? 1 : a.name.localeCompare(b.name)));
@@ -46,7 +47,13 @@ export default function PhoneInput({ value, onChange, required }) {
     if (next.trim().startsWith('+')) {
       const p = parsePhoneNumberFromString(next);
       if (p?.country) {
-        nextCountry = p.country;
+        // Countries sharing a code (+44 is GB, GG, IM, JE): take the first that accepts the number, so UK stays UK
+        nextCountry =
+          getCountries().find(
+            (c) =>
+              getCountryCallingCode(c) === p.countryCallingCode &&
+              parsePhoneNumberFromString(p.nationalNumber, c)?.isValid()
+          ) || p.country;
         next = p.formatNational();
         setCountry(nextCountry);
       }
