@@ -25,7 +25,17 @@ function countryOptions() {
  * number rules. Calls onChange with the full international number ("+2348012345678") when it's valid,
  * or with what was typed otherwise; an invalid number blocks the form from submitting.
  */
-export default function PhoneInput({ value, onChange, required }) {
+/** True when a saved number is a real mobile number WhatsApp can reach. */
+export function isWhatsAppNumber(phone) {
+  return Boolean(parsePhoneNumberFromString(String(phone || ''), DEFAULT_COUNTRY)?.isValid());
+}
+
+export default function PhoneInput({
+  value,
+  onChange,
+  required,
+  hint = 'Use your WhatsApp number: booking updates are sent there.',
+}) {
   const options = useMemo(countryOptions, []);
   const initial = value ? parsePhoneNumberFromString(value, DEFAULT_COUNTRY) : null;
   const [country, setCountry] = useState(initial?.country || DEFAULT_COUNTRY);
@@ -104,7 +114,7 @@ export default function PhoneInput({ value, onChange, required }) {
       ) : number.trim() ? (
         <span className="phone-input-hint phone-input-error">Enter your full mobile number, e.g. {country === 'NG' ? '0801 234 5678' : 'with all its digits'}</span>
       ) : (
-        <span className="phone-input-hint">Use your WhatsApp number: booking updates are sent there.</span>
+        <span className="phone-input-hint">{hint}</span>
       )}
     </div>
   );

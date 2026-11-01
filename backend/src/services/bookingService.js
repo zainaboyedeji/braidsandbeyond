@@ -263,8 +263,11 @@ async function createBooking({
     );
 
     if (clientId) {
-      // Accounts created before phone was required: remember the number for next time
-      await client.query(`UPDATE users SET phone = $1 WHERE id = $2 AND phone IS NULL`, [contact.phone, clientId]);
+      // Keep the account's number current: it was just checked, so it also replaces a missing or invalid old one
+      await client.query(`UPDATE users SET phone = $1 WHERE id = $2 AND phone IS DISTINCT FROM $1`, [
+        contact.phone,
+        clientId,
+      ]);
     }
 
     const detailsResult = await client.query(BOOKING_DETAILS_SQL, [insertResult.rows[0].id]);

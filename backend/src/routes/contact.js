@@ -1,6 +1,6 @@
 const express = require('express');
 const { sendContactMessage } = require('../services/email');
-const { EMAIL_RE, HttpError, asyncHandler } = require('../utils/http');
+const { EMAIL_RE, HttpError, asyncHandler, normalizePhone } = require('../utils/http');
 const { createRateLimiter } = require('../utils/rateLimit');
 
 const router = express.Router();
@@ -18,11 +18,14 @@ router.post(
 
     const name = String(req.body.name || '').trim();
     const email = String(req.body.email || '').trim().toLowerCase();
-    const phone = String(req.body.phone || '').trim();
+    const typedPhone = String(req.body.phone || '').trim();
+    const phone = typedPhone ? normalizePhone(typedPhone) : '';
     const message = String(req.body.message || '').trim();
     if (name.length < 2 || name.length > 120) throw new HttpError(400, 'Please enter your name');
     if (!EMAIL_RE.test(email) || email.length > 255) throw new HttpError(400, 'Please enter a valid email address');
-    if (phone.length > 30) throw new HttpError(400, 'Phone number is too long');
+    if (phone === null) {
+      throw new HttpError(400, 'Enter a valid WhatsApp mobile number with its country code, or leave it empty');
+    }
     if (message.length < 5 || message.length > 3000) {
       throw new HttpError(400, 'Please write a message (up to 3000 characters)');
     }

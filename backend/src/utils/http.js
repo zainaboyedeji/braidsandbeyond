@@ -47,4 +47,4 @@ function parseId(value, name = 'id') {
   return id;
 }
 
-module.exports = { HttpError, asyncHandler, EMAIL_RE, parseId, parseContact };
+module.exports = { HttpError, asyncHandler, EMAIL_RE, normalizePhone, parseId, parseContact };

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api/client';
+import { isWhatsAppNumber } from '../components/PhoneInput';
 import { useApp } from '../context/AppContext';
 import {
   addDays,
@@ -20,6 +21,16 @@ const VIEW_TITLES = {
   completed: 'Completed appointments',
   clients: 'Clients',
 };
+
+// Saved before numbers were checked: WhatsApp messages can't reach it, so the salon knows to email instead
+function NotWhatsApp() {
+  return (
+    <span className="text-danger" title="Not a valid WhatsApp number. Contact this client by email.">
+      {' '}
+      ⚠ invalid number
+    </span>
+  );
+}
 
 export default function AdminDashboard() {
   const { salon } = useApp();
@@ -199,7 +210,12 @@ export default function AdminDashboard() {
                     </td>
                     <td className="small">
                       <a href={`mailto:${c.email}`}>{c.email}</a>
-                      {c.phone && <div className="muted">{c.phone}</div>}
+                      {c.phone && (
+                        <div className="muted">
+                          {c.phone}
+                          {!isWhatsAppNumber(c.phone) && <NotWhatsApp />}
+                        </div>
+                      )}
                     </td>
                     <td>{c.booking_count}</td>
                     <td className="small">
@@ -240,7 +256,12 @@ export default function AdminDashboard() {
                     </div>
                     <div className="muted small">
                       <a href={`mailto:${a.client_email}`}>{a.client_email}</a>
-                      {a.client_phone && ` · ${a.client_phone}`}
+                      {a.client_phone && (
+                        <>
+                          {` · ${a.client_phone}`}
+                          {!isWhatsAppNumber(a.client_phone) && <NotWhatsApp />}
+                        </>
+                      )}
                     </div>
                   </td>
                   <td>

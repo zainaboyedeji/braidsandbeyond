@@ -10,6 +10,7 @@
     "dev": "concurrently -n api,web -c cyan,magenta \"npm run dev -w backend\" \"npm run dev -w frontend\"",
     "db:init": "npm run db:init -w backend",
     "db:admin": "npm run db:admin -w backend",
+    "db:phones": "npm run db:phones -w backend",
     "build": "npm run build -w frontend",
     "start": "npm run start -w backend"
   },

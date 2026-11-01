@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
+import PhoneInput from '../components/PhoneInput';
 import { useApp } from '../context/AppContext';
 import { WEEKDAYS, formatClock, mapsUrl, telHref } from '../utils/format';
 
@@ -132,8 +133,12 @@ export default function Contact() {
                 <input type="email" value={form.email} onChange={update('email')} autoComplete="email" required />
               </label>
               <label>
-                Phone <span className="muted">(optional)</span>
-                <input type="tel" value={form.phone} onChange={update('phone')} autoComplete="tel" maxLength={30} />
+                WhatsApp number <span className="muted">(optional)</span>
+                <PhoneInput
+                  value={form.phone}
+                  onChange={(phone) => setForm((prev) => ({ ...prev, phone }))}
+                  hint="Your WhatsApp number, if you'd like us to reply there."
+                />
               </label>
             </div>
             <label>

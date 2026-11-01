@@ -9,7 +9,8 @@ services:
     # --include=dev: Vite (a dev dependency) is needed to build the site even with NODE_ENV=production
     buildCommand: npm ci --include=dev && npm run build
     # db:init is idempotent: creates/updates tables, never deletes data
-    startCommand: npm run db:init && npm start
+    # db:phones tidies saved phone numbers into one format; it never deletes and skips tidy ones
+    startCommand: npm run db:init && npm run db:phones && npm start
     healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
